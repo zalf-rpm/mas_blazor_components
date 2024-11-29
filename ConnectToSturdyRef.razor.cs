@@ -2,7 +2,7 @@
 
 namespace Mas.Infrastructure.BlazorComponents
 {
-    public partial class ConnectToSturdyRef<TCapnpInterface> where TCapnpInterface : class, IDisposable
+    public partial class ConnectToSturdyRef<TCapnpInterface> : IDisposable where TCapnpInterface : class, IDisposable
     {
     }
 }
