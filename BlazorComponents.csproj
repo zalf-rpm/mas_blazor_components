@@ -20,9 +20,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../common/common.csproj" />
-    <ProjectReference Include="..\..\..\..\capnproto-dotnetcore\Capnp.Net.Runtime\Capnp.Net.Runtime.csproj" />
-    <ProjectReference Include="..\..\..\zalfmas_capnpschemas\gen\csharp\zalfmas_capnpschemas.csproj" />
+    <ProjectReference Include="..\capnproto-dotnetcore\Capnp.Net.Runtime\Capnp.Net.Runtime.csproj" />
+    <ProjectReference Include="..\mas_capnproto_schemas\gen\csharp\zalfmas_capnpschemas.csproj" />
+    <ProjectReference Include="..\mas_csharp_common\common.csproj" />
   </ItemGroup>
 
 </Project>
