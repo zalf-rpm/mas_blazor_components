@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
@@ -20,9 +20,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\capnproto-dotnetcore\Capnp.Net.Runtime\Capnp.Net.Runtime.csproj" />
-    <ProjectReference Include="..\mas_capnproto_schemas\gen\csharp\zalfmas_capnpschemas.csproj" />
-    <ProjectReference Include="..\mas_csharp_common\common.csproj" />
+    <ProjectReference Include="../capnproto-dotnetcore/Capnp.Net.Runtime/Capnp.Net.Runtime.csproj" />
+    <ProjectReference Include="../mas_capnproto_schemas/gen/csharp/Mas.Schema.csproj" />
+    <ProjectReference Include="../../src/mas_csharp_common/Mas.Infrastructure.Common.csproj" />
   </ItemGroup>
 
 </Project>
