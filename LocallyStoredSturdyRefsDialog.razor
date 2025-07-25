@@ -1,13 +1,19 @@
 ﻿@namespace Mas.Infrastructure.BlazorComponents
 
+@using System.Reflection
+@using Capnp.Rpc
+@using Mas.Infrastructure.Common
+@using Mas.Schema.Fbp
 @using MudBlazor
+@using MudBlazor.Extensions
 
 @inject ISnackbar Snackbar
 @inject Blazored.LocalStorage.ILocalStorageService LocalStorage
+@inject Mas.Infrastructure.Common.ConnectionManager ConMan
 
 <MudDialog>
     <DialogContent>
-        <MudTable T="@StoredSRData"
+        <MudTable T="@StoredSrData"
                   Items="@_bookmarks"
                   Hover="@true"
                   CommitEditTooltip="Commit Edit"
@@ -15,12 +21,12 @@
                   FixedHeader="@true"
                   Height="600px">
             <ColGroup>
-                <col style="width: 20%;" />
+                <col style="width: 15%;" />
                 <col style="width: 5%;" />
                 <col style="width: 5%;" />
                 <col style="width: 20%;" />
                 <col style="width: 45%;" />
-                <col style="width: 5%;" />
+                <col style="width: 10%;" />
             </ColGroup>
             <HeaderContent>
                 <MudTh>InterfaceId</MudTh>
@@ -39,11 +45,17 @@
                 <MudTd DataLabel="Action">
                     @if (context.SturdyRef.Length == 0)
                     {
-                        <MudText>NEW</MudText>
+                        <MudIconButton Icon="@Icons.Material.Filled.FiberNew"/>
                     }
                     else
                     {
-                        <MudIconButton Icon=@Icons.Material.Filled.Delete OnClick=@(async () => await Delete(context)) />
+                        var connected = IsConnected(context);
+                        <MudIconButton
+                            Icon="@(connected ? Icons.Material.Filled.CastConnected : Icons.Material.Filled.Cast)"
+                            Color="@(connected ? Color.Success : Color.Default)"
+                            OnClick=@(async () => await Connect(context))/>
+                        <MudIconButton Icon=@Icons.Material.Filled.Delete
+                                       OnClick=@(async () => await Delete(context)) />
                     }
                 </MudTd>
             </RowTemplate>
@@ -82,9 +94,15 @@
 @code {
     [CascadingParameter] MudDialogInstance? MudDialog { get; set; }
 
-    private List<StoredSRData> _bookmarks = [];
+    [Parameter] public Dictionary<ulong, System.Type> InterfaceIdToType { get; set; } = [];
+    [Parameter] public Dictionary<string, Proxy> SturdyRef2Services { get; set; } = [];
 
-    private readonly Dictionary<ulong, StoredSRData> _bookmarkWithLastDefaultSwitchedOn = new();
+    [Parameter]
+    public EventCallback<(ulong, string)> ConnectedToInterfaceIdAndSturdyRefChanged { get; set; }
+
+    private List<StoredSrData> _bookmarks = [];
+
+    private readonly Dictionary<ulong, StoredSrData> _bookmarkWithLastDefaultSwitchedOn = new();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -92,10 +110,10 @@
         {
             if (await LocalStorage.ContainKeyAsync("sturdy-ref-store"))
             {
-                _bookmarks = await StoredSRData.GetAllData(LocalStorage);
+                _bookmarks = await StoredSrData.GetAllData(LocalStorage);
                 _bookmarks.Sort();
             }
-            _bookmarks.Insert(0, new StoredSRData());
+            _bookmarks.Insert(0, new StoredSrData());
             StateHasChanged();
         }
     }
@@ -114,17 +132,50 @@
         }
         await SaveBookmarks();
 
-        if (!string.IsNullOrEmpty(_bookmarks[0].SturdyRef)) _bookmarks.Insert(0, new StoredSRData());
+        if (!string.IsNullOrEmpty(_bookmarks[0].SturdyRef)) _bookmarks.Insert(0, new StoredSrData());
         StateHasChanged();
     }
 
     private async Task SaveBookmarks()
     {
         var bms = _bookmarks.Where(d => !string.IsNullOrEmpty(d.SturdyRef) && d.InterfaceId != 0);
-        await StoredSRData.SaveAllData(LocalStorage, bms.ToList());
+        await StoredSrData.SaveAllData(LocalStorage, bms.ToList());
     }
 
-    private async Task Delete(StoredSRData data)
+    private bool IsConnected(StoredSrData data)
+    {
+        if (!SturdyRef2Services.TryGetValue(data.SturdyRef, out var proxy)) return false;
+        return proxy is { IsNull: false, IsDisposed: false };
+    }
+
+    private async Task Connect(StoredSrData data)
+    {
+        try
+        {
+            // don't connect if we don't know the interface type
+            // or we are already connected
+            if (!InterfaceIdToType.ContainsKey(data.InterfaceId)) return;
+            if (IsConnected(data)) return;
+
+            var t = InterfaceIdToType[data.InterfaceId];
+            var method = ConMan.GetType().GetMethod(nameof(ConnectionManager.Connect));
+            var generic = method?.MakeGenericMethod(t);
+            if (generic == null) return;
+            var service = await generic.InvokeAsync(ConMan, data.SturdyRef);
+            if (service is Proxy p) SturdyRef2Services[data.SturdyRef] = p;
+            Console.WriteLine("Connected to service @ " + data.SturdyRef);
+            if (ConnectedToInterfaceIdAndSturdyRefChanged.HasDelegate) _ =
+                ConnectedToInterfaceIdAndSturdyRefChanged.InvokeAsync((data.InterfaceId, data.SturdyRef));
+        }
+        catch (Capnp.Rpc.RpcException)
+        {
+            Console.WriteLine("Couldn't connect to channel starter service @ " + data.SturdyRef);
+        }
+        StateHasChanged();
+    }
+
+
+    private async Task Delete(StoredSrData data)
     {
         if (!_bookmarks.Remove(data)) return;
         await SaveBookmarks();
@@ -132,4 +183,6 @@
     }
 
     private void Close() => MudDialog?.Close();
+
+
 }

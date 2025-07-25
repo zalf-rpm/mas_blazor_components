@@ -15,7 +15,7 @@
 
 <MudPaper Class="d-flex flex-row py-2 px-1 align-content-center">
     <MudSelect Class="pa-2 mx-2"
-               T="@StoredSRData"
+               T="@StoredSrData"
                Value="@_selectedBookmark"
                ValueChanged="@SelectedBookmarkChanged"
                Label="@Label"
@@ -218,11 +218,11 @@
         Capability?.Dispose();
     }
 
-    private List<StoredSRData> _allBookmarks = [];
-    private List<StoredSRData> Bookmarks => _allBookmarks.Where(b => b.InterfaceId == typeof(TCapnpInterface).GetCustomAttribute<Capnp.TypeIdAttribute>(false)?.Id).ToList();
-    private StoredSRData? _selectedBookmark;
+    private List<StoredSrData> _allBookmarks = [];
+    private List<StoredSrData> Bookmarks => _allBookmarks.Where(b => b.InterfaceId == typeof(TCapnpInterface).GetCustomAttribute<Capnp.TypeIdAttribute>(false)?.Id).ToList();
+    private StoredSrData? _selectedBookmark;
 
-    private async Task SelectedBookmarkChanged(StoredSRData b, bool allowAutoConnect)
+    private async Task SelectedBookmarkChanged(StoredSrData b, bool allowAutoConnect)
     {
         _selectedBookmark = b;
         SturdyRefValueChanged(b.SturdyRef);
@@ -230,13 +230,13 @@
         StateHasChanged();
     }
 
-    private async Task SelectedBookmarkChanged(StoredSRData? b)
+    private async Task SelectedBookmarkChanged(StoredSrData? b)
     {
         if (b == null) return;
         await SelectedBookmarkChanged(b, true);
     }
 
-    private List<StoredSRData> _hardcodedDefaultSturdyRefs = [
+    private List<StoredSrData> _hardcodedDefaultSturdyRefs = [
         /*
         new StoredSRData
         {
@@ -345,12 +345,12 @@
             //just temporary to have some sturdy refs available in the users browser
             if (!await LocalStorage.ContainKeyAsync("sturdy-ref-store"))
             {
-                await StoredSRData.SaveAllData(LocalStorage, _hardcodedDefaultSturdyRefs);
+                await StoredSrData.SaveAllData(LocalStorage, _hardcodedDefaultSturdyRefs);
             }
 
             if (await LocalStorage.ContainKeyAsync("sturdy-ref-store"))
             {
-                _allBookmarks = await StoredSRData.GetAllData(LocalStorage);
+                _allBookmarks = await StoredSrData.GetAllData(LocalStorage);
                 _allBookmarks.Sort();
                 //try to select the first found default connect and auto connect field, so the user can start right away
                 var sbms = Bookmarks.Where(b => b is { AutoConnect: true, DefaultSelect: true });
@@ -378,17 +378,17 @@
         }
     }
 
-    private async Task OpenAddSturdyRefDialog(StoredSRData? editData = null)
+    private async Task OpenAddSturdyRefDialog(StoredSrData? editData = null)
     {
         var parameters = new DialogParameters();
         parameters.Add("InterfaceId", typeof(TCapnpInterface).GetCustomAttribute<Capnp.TypeIdAttribute>(false)?.Id);
         parameters.Add("EditData", editData);
         var options = new DialogOptions() { CloseButton = true, MaxWidth = MaxWidth.Large, FullWidth = true };
         var res = await DialogService.Show<NewSturdyRefDialog>("Add sturdy reference", parameters, options).Result;
-        if (res is { Data: StoredSRData nb } && editData == null)
+        if (res is { Data: StoredSrData nb } && editData == null)
         {
             if (nb.SturdyRef.Length == 0) return;
-            _allBookmarks = await StoredSRData.SaveNew(LocalStorage, nb);
+            _allBookmarks = await StoredSrData.SaveNew(LocalStorage, nb);
             _allBookmarks.Sort();
             await SelectedBookmarkChanged(nb);
         }
@@ -402,7 +402,7 @@
                     if (b != editData) b.DefaultSelect = false;
                 }
             }
-            await StoredSRData.SaveAllData(LocalStorage, _allBookmarks);
+            await StoredSrData.SaveAllData(LocalStorage, _allBookmarks);
             SturdyRef = editData.SturdyRef;
         }
     }
