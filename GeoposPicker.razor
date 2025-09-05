@@ -44,11 +44,7 @@
         _mapOptions = new MapOptions()
         {
             Zoom = Zoom,
-            Center = new LatLngLiteral()
-            {
-                Lat = CenterLatLng.Item1,
-                Lng = CenterLatLng.Item2
-            },
+            Center = new LatLngLiteral(CenterLatLng.Item1, CenterLatLng.Item2),
             MapTypeId = MapTypeId.Roadmap
         };
     }

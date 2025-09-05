@@ -92,7 +92,7 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] MudDialogInstance? MudDialog { get; set; }
+    [CascadingParameter] IMudDialogInstance? MudDialog { get; set; }
 
     [Parameter] public Dictionary<ulong, System.Type> InterfaceIdToType { get; set; } = [];
     [Parameter] public Dictionary<string, Proxy> SturdyRef2Services { get; set; } = [];
