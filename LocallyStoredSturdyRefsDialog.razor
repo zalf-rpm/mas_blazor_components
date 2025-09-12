@@ -98,7 +98,7 @@
     [Parameter] public Dictionary<string, Proxy> SturdyRef2Services { get; set; } = [];
 
     [Parameter]
-    public EventCallback<(ulong, string)> ConnectedToInterfaceIdAndSturdyRefChanged { get; set; }
+    public EventCallback<(ulong, string, string)> ConnectedToInterfaceIdAndSturdyRefAndPetNameChanged { get; set; }
 
     private List<StoredSrData> _bookmarks = [];
 
@@ -164,8 +164,8 @@
             var service = await generic.InvokeAsync(ConMan, data.SturdyRef);
             if (service is Proxy p) SturdyRef2Services[data.SturdyRef] = p;
             Console.WriteLine("Connected to service @ " + data.SturdyRef);
-            if (ConnectedToInterfaceIdAndSturdyRefChanged.HasDelegate) _ =
-                ConnectedToInterfaceIdAndSturdyRefChanged.InvokeAsync((data.InterfaceId, data.SturdyRef));
+            if (ConnectedToInterfaceIdAndSturdyRefAndPetNameChanged.HasDelegate) _ =
+                ConnectedToInterfaceIdAndSturdyRefAndPetNameChanged.InvokeAsync((data.InterfaceId, data.SturdyRef, data.PetName));
         }
         catch (Capnp.Rpc.RpcException)
         {
