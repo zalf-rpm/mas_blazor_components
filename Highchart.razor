@@ -1,42 +1,31 @@
 ﻿@namespace Mas.Infrastructure.BlazorComponents
 
-@using System.Text;
-@using Newtonsoft.Json.Linq
-@using Newtonsoft.Json
-@using System.Text.Json
+@inject IJSRuntime JsRuntime
+@inject IChartService ChartService
+
 @using Allegiance.Blazor.Highcharts.Core.Charts
 @using Allegiance.Blazor.Highcharts.Core.Constants
 @using Allegiance.Blazor.Highcharts.Core.Options
 @using Allegiance.Blazor.Highcharts.Core.Services.Interfaces
-
-@inject IJSRuntime JsRuntime
-@inject IChartService ChartService
-
+@using Newtonsoft.Json.Linq
 @implements IDisposable
 
 <div id="@_chartId"></div>
 
 @code {
-    [Parameter]
-    public Dictionary<string, IEnumerable<float>>? Data { get; set; }
+    [Parameter] public Dictionary<string, IEnumerable<float>>? Data { get; set; }
 
-    [Parameter]
-    public IEnumerable<DateTime>? Dates { get; set; }
+    [Parameter] public IEnumerable<DateTime>? Dates { get; set; }
 
-    [Parameter]
-    public string Type { get; set; } = ChartType.Line;
+    [Parameter] public string Type { get; set; } = ChartType.Line;
 
-    [Parameter]
-    public bool DataChanged { get; set; } = false;
+    [Parameter] public bool DataChanged { get; set; }
 
-    [Parameter]
-    public EventCallback ChartRerendered { get; set; }
+    [Parameter] public EventCallback ChartRerendered { get; set; }
 
-    [Parameter]
-    public string? Title { get; set; }
+    [Parameter] public string? Title { get; set; }
 
-    [Parameter]
-    public string? XAxisTitle { get; set; }
+    [Parameter] public string? XAxisTitle { get; set; }
 
     public class AxisConfig
     {
@@ -44,36 +33,35 @@
         public string? Id { get; set; }
         public bool Opposite { get; set; } = false;
     }
-    [Parameter]
-    public List<AxisConfig> YAxisConfigs { get; set; } = [];
 
-    [Parameter]
-    public bool AllCurvesVisible { get; set; } = false;
+    [Parameter] public List<AxisConfig> YAxisConfigs { get; set; } = [];
 
-    private Dictionary<string, int> _axisIdToCurveNo = new();
+    [Parameter] public bool AllCurvesVisible { get; set; }
+
+    private readonly Dictionary<string, int> _axisIdToCurveNo = new();
 
     public class CurveConfig
     {
-        public bool IsVisible { get; set; } = false;
+        public bool IsVisible { get; set; }
         public string? DisplayAxisId { get; set; }
     }
-    [Parameter]
-    public Dictionary<string, CurveConfig> CurveName2Config { get; set; } = new();
 
-    private string _chartId = Guid.NewGuid().ToString();
-    private bool _chartRenderedOnce = false;
+    [Parameter] public Dictionary<string, CurveConfig> CurveName2Config { get; set; } = new();
+
+    private readonly string _chartId = Guid.NewGuid().ToString();
+    private bool _chartRenderedOnce;
 
     private ChartObject? _lineGraph;
 
     protected override void OnInitialized()
     {
-        _lineGraph = new ChartObject()
+        _lineGraph = new ChartObject
         {
             Chart = new Chart(ChartType.Line, false),
             Legend = new Legend(true, Layout.Vertical, Align.Right, VerticalAlign.Middle),
             //PlotOptions = new PlotOptions(new PlotOptionsSeries(new Label(false), 2010)),
             Responsive = new Responsive(new Rule(new Condition(500),
-            new ChartOptions(new Legend(true, Layout.Vertical, Align.Right, VerticalAlign.Middle)))),
+                new ChartOptions(new Legend(true, Layout.Vertical, Align.Right, VerticalAlign.Middle)))),
             Series = [],
             //Subtitle = new Title("MONICA Result Data"),
             //Title = new Title(Title),
@@ -82,7 +70,7 @@
             {
                 Accessibility = new Accessibility("Date / days"),
                 Type = "datetime",
-                Labels = new Labels()// { Rotation = 0 },
+                Labels = new Labels() // { Rotation = 0 },
             }
         };
     }
@@ -105,11 +93,11 @@
             {
                 var ds = noDates
                     ? value.Select(v => (object)v).ToList()
-                    : value.Zip(milliDates!).Select(z => new List<object>() { z.Second, z.First }).ToList<object>();
+                    : value.Zip(milliDates!).Select(z => new List<object> { z.Second, z.First }).ToList<object>();
 
                 var isVisible = AllCurvesVisible || CurveName2Config.GetValueOrDefault(curveName,
                     new CurveConfig { IsVisible = i == 0 && !CurveName2Config.Any() }).IsVisible;
-                _lineGraph.Series.Add(new SeriesElement()
+                _lineGraph.Series.Add(new SeriesElement
                 {
                     Name = curveName,
                     Data = ds,
@@ -128,13 +116,14 @@
     private string UpdateJsonGraphOptions(string options)
     {
         var jOptions = JObject.Parse(options);
-        if(jOptions["tooltip"] is JObject tt) tt["xDateFormat"] = "%Y-%m-%d";
+        if (jOptions["tooltip"] is JObject tt) tt["xDateFormat"] = "%Y-%m-%d";
 
         if (YAxisConfigs.Any()) jOptions["yAxis"] = new JArray();
         foreach (var (i, conf) in YAxisConfigs.Select((conf, i) => (i, conf)))
         {
-            var yAxis = new JObject {
-                { "title", new JObject { { "text", conf.Title } , { "style", new JObject() } } },
+            var yAxis = new JObject
+            {
+                { "title", new JObject { { "text", conf.Title }, { "style", new JObject() } } },
                 { "opposite", conf.Opposite },
                 { "labels", new JObject { { "rotation", 0 } } }
             };
@@ -164,6 +153,7 @@
                 if (conf.DisplayAxisId != null) curve["yAxis"] = _axisIdToCurveNo.GetValueOrDefault(conf.DisplayAxisId, 0);
             }
         }
+
         return jOptions.ToString();
     }
 
@@ -180,4 +170,5 @@
     {
         _lineGraph?.DisposeChart(JsRuntime, _chartId);
     }
+
 }

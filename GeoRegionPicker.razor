@@ -1,8 +1,6 @@
-﻿@namespace Mas.Infrastructure.BlazorComponents
-
-@using System.Diagnostics
-@using GoogleMapsComponents
+﻿@using System.Diagnostics
 @using GoogleMapsComponents.Maps
+@namespace Mas.Infrastructure.BlazorComponents
 
 @inject IJSRuntime JsRuntime
 
@@ -20,41 +18,29 @@
 
 @code {
 
-    [Parameter]
-    public string? Width { get; set; }
+    [Parameter] public string? Width { get; set; }
 
-    [Parameter]
-    public string? Height { get; set; }
+    [Parameter] public string? Height { get; set; }
 
-    [Parameter]
-    public float FillOpacity { get; set; } = 0.2F;
+    [Parameter] public float FillOpacity { get; set; } = 0.2F;
 
-    [Parameter]
-    public string FillColor { get; set; } = "DodgerBlue";
+    [Parameter] public string FillColor { get; set; } = "DodgerBlue";
 
-    [Parameter]
-    public bool DefaultRectangle { get; set; } = false;
+    [Parameter] public bool DefaultRectangle { get; set; }
 
-    [Parameter]
-    public (double, double) DefaultTopLeft { get; set; } = (0.0, 0.0);
+    [Parameter] public (double, double) DefaultTopLeft { get; set; } = (0.0, 0.0);
 
-    [Parameter]
-    public (double, double) DefaultBottomRight { get; set; } = (0.0, 0.0);
+    [Parameter] public (double, double) DefaultBottomRight { get; set; } = (0.0, 0.0);
 
-    [Parameter]
-    public (double, double) CenterLatLng { get; set; } = (0.0, 0.0);
+    [Parameter] public (double, double) CenterLatLng { get; set; } = (0.0, 0.0);
 
-    [Parameter]
-    public (double, double) LatLng { get; set; } = (0.0, 0.0);
+    [Parameter] public (double, double) LatLng { get; set; } = (0.0, 0.0);
 
-    [Parameter]
-    public EventCallback<(double, double)> LatLngChanged { get; set; }
+    [Parameter] public EventCallback<(double, double)> LatLngChanged { get; set; }
 
-    [Parameter]
-    public EventCallback<LatLngBoundsLiteral> RectangleChanged { get; set; }
+    [Parameter] public EventCallback<LatLngBoundsLiteral> RectangleChanged { get; set; }
 
-    [Parameter]
-    public int Zoom { get; set; } = 6;
+    [Parameter] public int Zoom { get; set; } = 6;
 
     private Map? _map;
     private ElementReference _mapElementRef;
@@ -69,27 +55,28 @@
 
     //ElementReference MapWrapper;  //not used and can be removed from here and DOM element as well.
 
-    private List<LatLngLiteral> _path = new List<LatLngLiteral>();
-    private LatLngLiteral _tempPath = new LatLngLiteral();
+    private readonly List<LatLngLiteral> _path = new();
+
+    private LatLngLiteral _tempPath;
     //private LatLngLiteral topLeft = new LatLngLiteral();
     //private LatLngLiteral topRight = new LatLngLiteral();
     //private LatLngLiteral bottomRight = new LatLngLiteral();
     //private LatLngLiteral bottomLeft = new LatLngLiteral();
 
-    private int _currentCount = 0;
-    private bool _rectangleIsDrawn = false;
-    private bool _rectangleBoundsChangedByParent = false;
+    private int _currentCount;
+    private bool _rectangleIsDrawn;
+    private bool _rectangleBoundsChangedByParent;
 
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (_map == null)
         {
-            var mapOptions = new MapOptions()
+            var mapOptions = new MapOptions
             {
                 Zoom = 13,
                 Center = new LatLngLiteral(13.505892, 100.8162),
-                MapTypeId = MapTypeId.Roadmap,
+                MapTypeId = MapTypeId.Roadmap
                 //ApiLoadOptions = await KeyService.GetApiOptions()
             };
 
@@ -192,12 +179,12 @@
 
     private async Task RectangleBoundsChanged()
     {
-        if (_rectangle != null && _rectangleIsDrawn == true && _path.Count == 0 && _currentCount == 0 && _rectangleBoundsChangedByParent == false)
+        if (_rectangle != null && _rectangleIsDrawn && _path.Count == 0 && _currentCount == 0 && !_rectangleBoundsChangedByParent)
         {
             var bounds = await _rectangle.GetBounds();
             await RectangleChanged.InvokeAsync(bounds);
 
-            var newBounds = new LatLngBoundsLiteral()
+            var newBounds = new LatLngBoundsLiteral
             {
                 East = DefaultBottomRight.Item2,
                 North = DefaultTopLeft.Item1,
@@ -209,14 +196,13 @@
 
             _rectangleBoundsChangedByParent = true;
         }
-
     }
 
     private async Task SetRectangle((double, double) topLeft, (double, double) bottomRight)
     {
-        if (_rectangle != null && DefaultRectangle == true)
+        if (_rectangle != null && DefaultRectangle)
         {
-            var bounds = new LatLngBoundsLiteral()
+            var bounds = new LatLngBoundsLiteral
             {
                 East = bottomRight.Item2,
                 North = topLeft.Item1,
@@ -228,7 +214,6 @@
 
             _rectangleIsDrawn = true;
         }
-
     }
 
     private void OnClick(MouseEvent e)
@@ -238,16 +223,16 @@
 
     private async Task DrawRectangle()
     {
-        if (_rectangleIsDrawn == true && _path.Count == 0) return;  // There is already a rectangle in the page and this click is on this rectangle, so do nothing.
-                                                                    // Either it's the first ever click or it's a click on an empty space while there is already a rectangle on the page.
-                                                                    // Check if it is the first click or the secound in the Wrapper
+        if (_rectangleIsDrawn && _path.Count == 0) return; // There is already a rectangle in the page and this click is on this rectangle, so do nothing.
+        // Either it's the first ever click or it's a click on an empty space while there is already a rectangle on the page.
+        // Check if it is the first click or the secound in the Wrapper
         _currentCount++;
 
         if (_currentCount < 2) return; // if it is the first click, path is already stored, just return and wait for the secound click.
 
-        _path.Add(_tempPath);    // if it is the secound click add the secound path and continue to draw the rectangle
+        _path.Add(_tempPath); // if it is the secound click add the secound path and continue to draw the rectangle
 
-        if (_path.Count < 2) return;  // just an extra check, can be removed
+        if (_path.Count < 2) return; // just an extra check, can be removed
 
         //specify the corners
         //topLeft = path[0];
@@ -257,7 +242,7 @@
         //bottomLeft.Lng = path[0].Lng;
         //bottomLeft.Lat = path[1].Lat;
 
-        var bounds = new LatLngBoundsLiteral()
+        var bounds = new LatLngBoundsLiteral
         {
             East = _path[1].Lng,
             North = _path[0].Lat,
@@ -267,7 +252,6 @@
 
         if (_rectangle != null)
         {
-
             await _rectangle.SetBounds(bounds);
 
             // //This is how to get tha corners of our rectangle. Will be useful in other methods:
@@ -284,13 +268,13 @@
 
             await RectangleChanged.InvokeAsync(bounds);
 
-            var newBounds = new LatLngBoundsLiteral()
-                {
-                    East = DefaultBottomRight.Item2,
-                    North = DefaultTopLeft.Item1,
-                    South = DefaultBottomRight.Item1,
-                    West = DefaultTopLeft.Item2
-                };
+            var newBounds = new LatLngBoundsLiteral
+            {
+                East = DefaultBottomRight.Item2,
+                North = DefaultTopLeft.Item1,
+                South = DefaultBottomRight.Item1,
+                West = DefaultTopLeft.Item2
+            };
 
             await _rectangle.SetBounds(newBounds);
 
@@ -311,7 +295,7 @@
         {
             _tempPath = e.LatLng;
 
-            var bounds = new LatLngBoundsLiteral()
+            var bounds = new LatLngBoundsLiteral
             {
                 East = _tempPath.Lng, // - 0.01,
                 North = _path[0].Lat,

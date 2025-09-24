@@ -1,6 +1,5 @@
-﻿@namespace Mas.Infrastructure.BlazorComponents
-
-@using MudBlazor
+﻿@using MudBlazor
+@namespace Mas.Infrastructure.BlazorComponents
 
 <MudDialog>
     <DialogContent>
@@ -12,8 +11,7 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] 
-    IMudDialogInstance? MudDialog { get; set; }
+    [CascadingParameter] IMudDialogInstance? MudDialog { get; set; }
 
     private KA5SoilTypeTriangle? triangle { get; set; }
 
@@ -32,18 +30,22 @@
     {
         if (triangle != null)
         {
-            MudDialog?.Close(DialogResult.Ok(new Result()
-                {
-                    SoilTextureName = triangle.SoilTextureName ?? "",
-                    SiltPercentRange = triangle.SiltPercentageRange,
-                    SiltPercentRangeAvg = triangle.SiltPercentageRangeAvg,
-                    ClayPercentRange = triangle.ClayPercentageRange,
-                    ClayPercentRangeAvg = triangle.ClayPercentageRangeAvg,
-                    SandPercentRange = triangle.SandPercentageRange,
-                    SandPercentRangeAvg = triangle.SandPercentageRangeAvg
-                }));
+            MudDialog?.Close(DialogResult.Ok(new Result
+            {
+                SoilTextureName = triangle.SoilTextureName ?? "",
+                SiltPercentRange = triangle.SiltPercentageRange,
+                SiltPercentRangeAvg = triangle.SiltPercentageRangeAvg,
+                ClayPercentRange = triangle.ClayPercentageRange,
+                ClayPercentRangeAvg = triangle.ClayPercentageRangeAvg,
+                SandPercentRange = triangle.SandPercentageRange,
+                SandPercentRangeAvg = triangle.SandPercentageRangeAvg
+            }));
         }
     }
 
-    private void Cancel() => MudDialog?.Cancel();
+    private void Cancel()
+    {
+        MudDialog?.Cancel();
+    }
+
 }

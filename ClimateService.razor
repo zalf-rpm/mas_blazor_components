@@ -1,10 +1,11 @@
 ﻿@namespace Mas.Infrastructure.BlazorComponents
 
+@using Capnp.Rpc
+@using MudBlazor
 @using C = Mas.Schema.Common
 @using Climate = Mas.Schema.Climate
-@using MudBlazor
 
-@using VT = ValueTuple<IEnumerable<Mas.Schema.Common.IdInformation>, Mas.Schema.Climate.IDataset, int>
+@using VT = ValueTuple<IEnumerable<Schema.Common.IdInformation>, Schema.Climate.IDataset, int>
 
 @implements IDisposable
 
@@ -20,6 +21,7 @@
         @code {
             private int _selectedDatasetId = -1;
         }
+
         <MudTable T="@VT"
                   FixedHeader="@true"
                   Height=@(metaAndData.Count() == 0 ? "" : "400px")
@@ -27,27 +29,28 @@
                   Hover="@true"
                   Dense="@true"
                   Filter="@(new Func<(IEnumerable<C.IdInformation>, Climate.IDataset, int), bool>(DataFilterFunc))"
-                  SelectedItemChanged="@(t => {
-                                            _selectedDatasetId = t.Item3;
-                                            selectedDataset = t.Item2;
-                                            if (DatasetCapChanged.HasDelegate) DatasetCapChanged.InvokeAsync(selectedDataset);
-                                            StateHasChanged(); 
-                                        })">
+                  SelectedItemChanged="@(t =>
+                                       {
+                                           _selectedDatasetId = t.Item3;
+                                           selectedDataset = t.Item2;
+                                           if (DatasetCapChanged.HasDelegate) DatasetCapChanged.InvokeAsync(selectedDataset);
+                                           StateHasChanged();
+                                       })">
             <ToolBarContent>
-                <MudButton Class="mr-4" 
-                            Variant="@Variant.Filled" 
-                            Color="@Color.Primary" 
-                            OnClick="@LoadDatasets" 
-                            Disabled="@(ClimateServiceCap == null)">
+                <MudButton Class="mr-4"
+                           Variant="@Variant.Filled"
+                           Color="@Color.Primary"
+                           OnClick="@LoadDatasets"
+                           Disabled="@(ClimateServiceCap == null)">
                     Load
                 </MudButton>
                 <MudText Typo="Typo.h6">Datasets</MudText>
                 <MudSpacer/>
-                <MudTextField @bind-Value="searchString" 
-                                Placeholder="Search" 
-                                Adornment="Adornment.Start" 
-                                AdornmentIcon="@Icons.Material.Filled.Search" 
-                                IconSize="Size.Medium" Class="mt-0"/>
+                <MudTextField @bind-Value="searchString"
+                              Placeholder="Search"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              IconSize="Size.Medium" Class="mt-0"/>
             </ToolBarContent>
             <HeaderContent>
                 @foreach (var h in metaHeadings)
@@ -74,31 +77,29 @@
 @code {
 
     private Climate.IService? climateServiceCap;
+
     [Parameter]
-    public Climate.IService? ClimateServiceCap {
-        get => climateServiceCap; 
+    public Climate.IService? ClimateServiceCap
+    {
+        get => climateServiceCap;
         set
         {
             if (climateServiceCap == value) return;
             Console.WriteLine("ClimateServiceCap.Setter");
             climateServiceCap?.Dispose();
             climateServiceCap = value;
-            if (ClimateServiceCapChanged.HasDelegate) _ = ClimateServiceCapChanged.InvokeAsync(Capnp.Rpc.Proxy.Share(climateServiceCap!));
+            if (ClimateServiceCapChanged.HasDelegate) _ = ClimateServiceCapChanged.InvokeAsync(Proxy.Share(climateServiceCap!));
             _ = LoadDatasets();
-        } 
+        }
     }
 
-    [Parameter]
-    public string ClimateServiceSturdyRef { get; set; } = "";
+    [Parameter] public string ClimateServiceSturdyRef { get; set; } = "";
 
-    [Parameter]
-    public EventCallback<Climate.IService> ClimateServiceCapChanged { get; set; }
+    [Parameter] public EventCallback<Climate.IService> ClimateServiceCapChanged { get; set; }
 
-    [Parameter]
-    public EventCallback<Climate.IDataset> DatasetCapChanged { get; set; }
+    [Parameter] public EventCallback<Climate.IDataset> DatasetCapChanged { get; set; }
 
-    [Parameter]
-    public bool HideSturdyRefConnector { get; set; } = false;
+    [Parameter] public bool HideSturdyRefConnector { get; set; }
 
     private string searchString = "";
 
@@ -124,6 +125,7 @@
             case Climate.Metadata.Entry.WHICH.Historical: return "Historical";
             case Climate.Metadata.Entry.WHICH.Picontrol: return "PiControl";
         }
+
         return "undef";
     }
 
@@ -157,8 +159,9 @@
             var e = r.Select(p => p.Snd);
             metaAndDataL.Add((r.Select(p => p.Snd), ds.Data, i));
         }
+
         metaAndData = metaAndDataL;
-        
+
         StateHasChanged();
     }
 
@@ -177,6 +180,8 @@
             if (m.Name.Contains(searchString, StringComparison.OrdinalIgnoreCase))
                 return true;
         }
+
         return false;
     }
+
 }

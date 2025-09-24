@@ -1,15 +1,12 @@
-﻿@namespace Mas.Infrastructure.BlazorComponents
-
-@using System.Reflection
+﻿@using Blazored.LocalStorage
 @using Capnp.Rpc
 @using Mas.Infrastructure.Common
-@using Mas.Schema.Fbp
 @using MudBlazor
-@using MudBlazor.Extensions
+@namespace Mas.Infrastructure.BlazorComponents
 
 @inject ISnackbar Snackbar
-@inject Blazored.LocalStorage.ILocalStorageService LocalStorage
-@inject Mas.Infrastructure.Common.ConnectionManager ConMan
+@inject ILocalStorageService LocalStorage
+@inject ConnectionManager ConMan
 
 <MudDialog>
     <DialogContent>
@@ -21,12 +18,12 @@
                   FixedHeader="@true"
                   Height="600px">
             <ColGroup>
-                <col style="width: 15%;" />
-                <col style="width: 5%;" />
-                <col style="width: 5%;" />
-                <col style="width: 20%;" />
-                <col style="width: 45%;" />
-                <col style="width: 10%;" />
+                <col style="width: 15%;"/>
+                <col style="width: 5%;"/>
+                <col style="width: 5%;"/>
+                <col style="width: 20%;"/>
+                <col style="width: 45%;"/>
+                <col style="width: 10%;"/>
             </ColGroup>
             <HeaderContent>
                 <MudTh>InterfaceId</MudTh>
@@ -55,7 +52,7 @@
                             Color="@(connected ? Color.Success : Color.Default)"
                             OnClick=@(async () => await Connect(context))/>
                         <MudIconButton Icon=@Icons.Material.Filled.Delete
-                                       OnClick=@(async () => await Delete(context)) />
+                                       OnClick=@(async () => await Delete(context))/>
                     }
                 </MudTd>
             </RowTemplate>
@@ -63,25 +60,32 @@
                 <MudTd DataLabel="InterfaceId">
                     <MudTextField T="@ulong"
                                   Value="@context.InterfaceId"
-                                  ValueChanged="@(v => {
-                                  context.InterfaceId = v;
-                                  if(context.DefaultSelect) _bookmarkWithLastDefaultSwitchedOn[context.InterfaceId] = context;
-                                  })"
-                                  Required />
+                                  ValueChanged="@(v =>
+                                                {
+                                                    context.InterfaceId = v;
+                                                    if (context.DefaultSelect) _bookmarkWithLastDefaultSwitchedOn[context.InterfaceId] = context;
+                                                })"
+                                  Required/>
                 </MudTd>
-                <MudTd DataLabel="Auto connect?"><MudSwitch @bind-Value="context.AutoConnect" Color="@Color.Primary" /></MudTd>
+                <MudTd DataLabel="Auto connect?">
+                    <MudSwitch @bind-Value="context.AutoConnect" Color="@Color.Primary"/>
+                </MudTd>
                 <MudTd DataLabel="Select by default?">
                     <MudSwitch T="@bool"
                                Value="@context.DefaultSelect"
                                ValueChanged="@(s =>
-                               {
-                               context.DefaultSelect = s;
-                               _bookmarkWithLastDefaultSwitchedOn[context.InterfaceId] = context;
-                               })"
-                               Color="@Color.Primary" />
+                                             {
+                                                 context.DefaultSelect = s;
+                                                 _bookmarkWithLastDefaultSwitchedOn[context.InterfaceId] = context;
+                                             })"
+                               Color="@Color.Primary"/>
                 </MudTd>
-                <MudTd DataLabel="Petname"><MudTextField @bind-Value="context.PetName" /></MudTd>
-                <MudTd DataLabel="Sturdy reference"><MudTextField @bind-Value="context.SturdyRef" Required /></MudTd>
+                <MudTd DataLabel="Petname">
+                    <MudTextField @bind-Value="context.PetName"/>
+                </MudTd>
+                <MudTd DataLabel="Sturdy reference">
+                    <MudTextField @bind-Value="context.SturdyRef" Required/>
+                </MudTd>
                 <MudTd DataLabel="Action"></MudTd>
             </RowEditingTemplate>
         </MudTable>
@@ -94,11 +98,10 @@
 @code {
     [CascadingParameter] IMudDialogInstance? MudDialog { get; set; }
 
-    [Parameter] public Dictionary<ulong, System.Type> InterfaceIdToType { get; set; } = [];
+    [Parameter] public Dictionary<ulong, Type> InterfaceIdToType { get; set; } = [];
     [Parameter] public Dictionary<string, Proxy> SturdyRef2Services { get; set; } = [];
 
-    [Parameter]
-    public EventCallback<(ulong, string, string)> ConnectedToInterfaceIdAndSturdyRefAndPetNameChanged { get; set; }
+    [Parameter] public EventCallback<(ulong, string, string)> ConnectedToInterfaceIdAndSturdyRefAndPetNameChanged { get; set; }
 
     private List<StoredSrData> _bookmarks = [];
 
@@ -113,6 +116,7 @@
                 _bookmarks = await StoredSrData.GetAllData(LocalStorage);
                 _bookmarks.Sort();
             }
+
             _bookmarks.Insert(0, new StoredSrData());
             StateHasChanged();
         }
@@ -130,6 +134,7 @@
                 if (def.DefaultSelect && b != def) b.DefaultSelect = false;
             }
         }
+
         await SaveBookmarks();
 
         if (!string.IsNullOrEmpty(_bookmarks[0].SturdyRef)) _bookmarks.Insert(0, new StoredSrData());
@@ -164,13 +169,15 @@
             var service = await generic.InvokeAsync(ConMan, data.SturdyRef);
             if (service is Proxy p) SturdyRef2Services[data.SturdyRef] = p;
             Console.WriteLine("Connected to service @ " + data.SturdyRef);
-            if (ConnectedToInterfaceIdAndSturdyRefAndPetNameChanged.HasDelegate) _ =
-                ConnectedToInterfaceIdAndSturdyRefAndPetNameChanged.InvokeAsync((data.InterfaceId, data.SturdyRef, data.PetName));
+            if (ConnectedToInterfaceIdAndSturdyRefAndPetNameChanged.HasDelegate)
+                _ =
+                    ConnectedToInterfaceIdAndSturdyRefAndPetNameChanged.InvokeAsync((data.InterfaceId, data.SturdyRef, data.PetName));
         }
-        catch (Capnp.Rpc.RpcException)
+        catch (RpcException)
         {
             Console.WriteLine("Couldn't connect to channel starter service @ " + data.SturdyRef);
         }
+
         StateHasChanged();
     }
 
@@ -182,7 +189,10 @@
         StateHasChanged();
     }
 
-    private void Close() => MudDialog?.Close();
+    private void Close()
+    {
+        MudDialog?.Close();
+    }
 
 
 }

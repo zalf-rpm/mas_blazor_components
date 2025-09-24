@@ -1,14 +1,13 @@
-﻿@namespace Mas.Infrastructure.BlazorComponents
-
-@using MudBlazor
+﻿@using MudBlazor
+@namespace Mas.Infrastructure.BlazorComponents
 
 <MudDialog>
     <DialogContent>
-        <MudTextField Value="@InterfaceId" ReadOnly="@true" Label="InterfaceId" />
-        <MudTextField @bind-Value="_editBookmark.PetName" Label="Petname" />
-        <MudTextField @bind-Value="_editBookmark.SturdyRef" Label="Sturdy reference" Required />
-        <MudSwitch @bind-Value="_editBookmark.AutoConnect" Label="Auto-connect?" Color="@Color.Primary" />
-        <MudSwitch @bind-Value="_editBookmark.DefaultSelect" Label="Select by default?" Color="@Color.Primary" />
+        <MudTextField Value="@InterfaceId" ReadOnly="@true" Label="InterfaceId"/>
+        <MudTextField @bind-Value="_editBookmark.PetName" Label="Petname"/>
+        <MudTextField @bind-Value="_editBookmark.SturdyRef" Label="Sturdy reference" Required/>
+        <MudSwitch @bind-Value="_editBookmark.AutoConnect" Label="Auto-connect?" Color="@Color.Primary"/>
+        <MudSwitch @bind-Value="_editBookmark.DefaultSelect" Label="Select by default?" Color="@Color.Primary"/>
     </DialogContent>
     <DialogActions>
         <MudButton OnClick="@Cancel">Cancel</MudButton>
@@ -17,14 +16,11 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter]
-    IMudDialogInstance? MudDialog { get; set; }
+    [CascadingParameter] IMudDialogInstance? MudDialog { get; set; }
 
-    [Parameter]
-    public ulong InterfaceId { get; set; }
+    [Parameter] public ulong InterfaceId { get; set; }
 
-    [Parameter]
-    public StoredSrData? EditData { get; set; }
+    [Parameter] public StoredSrData? EditData { get; set; }
 
     private StoredSrData _editBookmark = new();
 
@@ -38,5 +34,10 @@
         _editBookmark.InterfaceId = InterfaceId;
         MudDialog?.Close(DialogResult.Ok(_editBookmark));
     }
-    void Cancel() => MudDialog?.Cancel();
+
+    void Cancel()
+    {
+        MudDialog?.Cancel();
+    }
+
 }

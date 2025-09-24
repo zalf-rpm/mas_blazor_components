@@ -1,8 +1,5 @@
-﻿using System;
+﻿namespace Mas.Infrastructure.BlazorComponents;
 
-namespace Mas.Infrastructure.BlazorComponents
+public partial class ConnectToSturdyRef<TCapnpInterface> : IDisposable where TCapnpInterface : class, IDisposable
 {
-    public partial class ConnectToSturdyRef<TCapnpInterface> : IDisposable where TCapnpInterface : class, IDisposable
-    {
-    }
 }
