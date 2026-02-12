@@ -55,8 +55,9 @@
         {
             try
             {
+                var comments = ParseComments(TomlString);
                 var model = Toml.ToModel(TomlString);
-                ParseTomlModel(model);
+                ParseTomlModel(model, comments);
             }
             catch (Exception ex)
             {
@@ -65,7 +66,79 @@
         }
     }
 
-    private void ParseTomlModel(TomlTable table)
+    private Dictionary<string, CommentInfo> ParseComments(string tomlString)
+    {
+        var comments = new Dictionary<string, CommentInfo>();
+        var lines = tomlString.Split('\n');
+        string? currentCategory = null;
+
+        foreach (var line in lines)
+        {
+            var trimmedLine = line.Trim();
+
+            // Check for category headers
+            if (trimmedLine.StartsWith("[") && trimmedLine.Contains("]"))
+            {
+                var categoryEnd = trimmedLine.IndexOf(']');
+                currentCategory = trimmedLine.Substring(1, categoryEnd - 1);
+                continue;
+            }
+
+            // Check for key-value pairs with inline comments
+            if (trimmedLine.Contains("=") && trimmedLine.Contains("#"))
+            {
+                var parts = trimmedLine.Split('=', 2);
+                if (parts.Length == 2)
+                {
+                    var key = parts[0].Trim();
+                    var valuePart = parts[1];
+                    var commentIndex = valuePart.IndexOf('#');
+
+                    if (commentIndex > 0)
+                    {
+                        var comment = valuePart.Substring(commentIndex + 1).Trim();
+                        var fullKey = currentCategory != null ? $"{currentCategory}.{key}" : key;
+                        comments[fullKey] = ParseCommentInfo(comment);
+                    }
+                }
+            }
+        }
+
+        return comments;
+    }
+
+    private CommentInfo ParseCommentInfo(string comment)
+    {
+        var info = new CommentInfo();
+
+        // Check for [placeholder] -> tooltip format
+        if (comment.Contains("[") && comment.Contains("]") && comment.Contains("->"))
+        {
+            var startBracket = comment.IndexOf('[');
+            var endBracket = comment.IndexOf(']');
+            var arrowIndex = comment.IndexOf("->");
+
+            if (startBracket < endBracket && endBracket < arrowIndex)
+            {
+                info.HelperText = comment.Substring(startBracket + 1, endBracket - startBracket - 1).Trim();
+                info.Tooltip = comment.Substring(arrowIndex + 2).Trim();
+            }
+            else
+            {
+                // Malformed, use entire comment as helper text
+                info.HelperText = comment;
+            }
+        }
+        else
+        {
+            // No special format, use entire comment as helper text
+            info.HelperText = comment;
+        }
+
+        return info;
+    }
+
+    private void ParseTomlModel(TomlTable table, Dictionary<string, CommentInfo> comments)
     {
         foreach (var kvp in table)
         {
@@ -81,35 +154,39 @@
 
                 foreach (var subKvp in subTable)
                 {
-                    categoryEntry.SubEntries.Add(CreateEntryFromValue(subKvp.Key, subKvp.Value));
+                    var fullKey = $"{kvp.Key}.{subKvp.Key}";
+                    var commentInfo = comments.GetValueOrDefault(fullKey);
+                    categoryEntry.SubEntries.Add(CreateEntryFromValue(subKvp.Key, subKvp.Value, commentInfo));
                 }
 
                 _entries.Add(categoryEntry);
             }
             else
             {
-                _entries.Add(CreateEntryFromValue(kvp.Key, kvp.Value));
+                var commentInfo = comments.GetValueOrDefault(kvp.Key);
+                _entries.Add(CreateEntryFromValue(kvp.Key, kvp.Value, commentInfo));
             }
         }
     }
 
-    private TomlEntry CreateEntryFromValue(string key, object value)
+    private TomlEntry CreateEntryFromValue(string key, object value, CommentInfo? commentInfo = null)
     {
         return value switch
         {
-            string s => new TomlEntry { Key = key, ValueType = TomlValueType.String, StringValue = s },
-            long l => new TomlEntry { Key = key, ValueType = TomlValueType.Integer, IntegerValue = l },
-            double d => new TomlEntry { Key = key, ValueType = TomlValueType.Double, DoubleValue = d },
-            TomlArray arr => CreateArrayEntry(key, arr),
-            _ => new TomlEntry { Key = key, ValueType = TomlValueType.String, StringValue = value?.ToString() ?? "" }
+            string s => new TomlEntry { Key = key, ValueType = TomlValueType.String, StringValue = s, Comment = commentInfo },
+            long l => new TomlEntry { Key = key, ValueType = TomlValueType.Integer, IntegerValue = l, Comment = commentInfo },
+            double d => new TomlEntry { Key = key, ValueType = TomlValueType.Double, DoubleValue = d, Comment = commentInfo },
+            bool b => new TomlEntry { Key = key, ValueType = TomlValueType.Boolean, BooleanValue = b, Comment = commentInfo },
+            TomlArray arr => CreateArrayEntry(key, arr, commentInfo),
+            _ => new TomlEntry { Key = key, ValueType = TomlValueType.String, StringValue = value?.ToString() ?? "", Comment = commentInfo }
         };
     }
 
-    private TomlEntry CreateArrayEntry(string key, TomlArray array)
+    private TomlEntry CreateArrayEntry(string key, TomlArray array, CommentInfo? commentInfo = null)
     {
         if (array.Count == 0)
         {
-            return new TomlEntry { Key = key, ValueType = TomlValueType.StringArray, StringArrayValue = "" };
+            return new TomlEntry { Key = key, ValueType = TomlValueType.StringArray, StringArrayValue = "", Comment = commentInfo };
         }
 
         var firstElement = array[0];
@@ -119,69 +196,100 @@
             {
                 Key = key,
                 ValueType = TomlValueType.StringArray,
-                StringArrayValue = string.Join(", ", array.Cast<string>())
+                StringArrayValue = string.Join(", ", array.Cast<string>()),
+                Comment = commentInfo
             },
             long _ => new TomlEntry
             {
                 Key = key,
                 ValueType = TomlValueType.IntegerArray,
-                IntegerArrayValue = string.Join(", ", array.Cast<long>())
+                IntegerArrayValue = string.Join(", ", array.Cast<long>()),
+                Comment = commentInfo
             },
             double _ => new TomlEntry
             {
                 Key = key,
                 ValueType = TomlValueType.DoubleArray,
-                DoubleArrayValue = string.Join(", ", array.Cast<double>())
+                DoubleArrayValue = string.Join(", ", array.Cast<double>()),
+                Comment = commentInfo
             },
-            _ => new TomlEntry { Key = key, ValueType = TomlValueType.StringArray, StringArrayValue = "" }
+            _ => new TomlEntry { Key = key, ValueType = TomlValueType.StringArray, StringArrayValue = "", Comment = commentInfo }
         };
     }
 
     private RenderFragment RenderEntryEditor(TomlEntry entry)
     {
+        var helperText = entry.Comment?.HelperText;
+        var tooltip = entry.Comment?.Tooltip;
+
         return entry.ValueType switch
         {
-            TomlValueType.String => @<div class="d-flex align-center gap-2">
-                                        <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true" Class="mr-2"
-                                                      Style="max-width: 200px;"/>
-                                        <MudTextField @bind-Value="entry.StringValue" Label="Value"
+            TomlValueType.String => @<MudTooltip Text="@tooltip" Placement="Placement.Top">
+                                        <MudTextField @bind-Value="entry.StringValue"
+                                                      Label="@entry.Key"
+                                                      Placeholder="@helperText"
+                                                      HelperText="@helperText"
+                                                      Variant="Variant.Outlined"
+                                                      ShrinkLabel="true"
+                                                      Clearable="true"
                                                       Class="flex-grow-1"/>
-                                    </div>,
+                                    </MudTooltip>,
 
-            TomlValueType.Integer => @<div class="d-flex align-center gap-2">
-                                         <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true" Class="mr-2"
-                                                       Style="max-width: 200px;"/>
-                                         <MudNumericField @bind-Value="entry.IntegerValue" Label="Value"
+            TomlValueType.Integer => @<MudTooltip Text="@tooltip" Placement="Placement.Top">
+                                         <MudNumericField @bind-Value="entry.IntegerValue"
+                                                          Label="@entry.Key"
+                                                          HelperText="@helperText"
+                                                          Variant="Variant.Outlined"
+                                                          ShrinkLabel="true"
                                                           Class="flex-grow-1"/>
-                                     </div>,
+                                     </MudTooltip>,
 
-            TomlValueType.Double => @<div class="d-flex align-center gap-2">
-                                        <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true" Class="mr-2"
-                                                      Style="max-width: 200px;"/>
-                                        <MudNumericField @bind-Value="entry.DoubleValue" Label="Value"
+            TomlValueType.Double => @<MudTooltip Text="@tooltip" Placement="Placement.Top">
+                                        <MudNumericField @bind-Value="entry.DoubleValue"
+                                                         Label="@entry.Key"
+                                                         HelperText="@helperText"
+                                                         Variant="Variant.Outlined"
+                                                         ShrinkLabel="true"
                                                          Class="flex-grow-1"/>
-                                    </div>,
+                                    </MudTooltip>,
 
-            TomlValueType.StringArray => @<div class="d-flex align-center gap-2">
-                                             <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true"
-                                                           Class="mr-2" Style="max-width: 200px;"/>
+            TomlValueType.Boolean => @<MudTooltip Text="@tooltip" Placement="Placement.Top">
+                                         <MudSwitch @bind-Value="entry.BooleanValue"
+                                                    Label="@entry.Key"
+                                                    LabelPlacement="Placement.Start"
+                                                    Color="Color.Primary"
+                                                    Class="flex-grow-1"/>
+                                     </MudTooltip>,
+
+            TomlValueType.StringArray => @<MudTooltip Text="@tooltip" Placement="Placement.Top">
                                              <MudTextField @bind-Value="entry.StringArrayValue"
-                                                           Label="Values (comma-separated)" Class="flex-grow-1"/>
-                                         </div>,
+                                                           Label="@entry.Key"
+                                                           Placeholder="@helperText"
+                                                           HelperText="@helperText"
+                                                           Variant="Variant.Outlined"
+                                                           ShrinkLabel="true"
+                                                           Class="flex-grow-1"/>
+                                         </MudTooltip>,
 
-            TomlValueType.IntegerArray => @<div class="d-flex align-center gap-2">
-                                              <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true"
-                                                            Class="mr-2" Style="max-width: 200px;"/>
+            TomlValueType.IntegerArray => @<MudTooltip Text="@tooltip" Placement="Placement.Top">
                                               <MudTextField @bind-Value="entry.IntegerArrayValue"
-                                                            Label="Values (comma-separated)" Class="flex-grow-1"/>
-                                          </div>,
+                                                            Label="@entry.Key"
+                                                            Placeholder="@helperText"
+                                                            HelperText="@helperText"
+                                                            Variant="Variant.Outlined"
+                                                            ShrinkLabel="true"
+                                                            Class="flex-grow-1"/>
+                                          </MudTooltip>,
 
-            TomlValueType.DoubleArray => @<div class="d-flex align-center gap-2">
-                                             <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true"
-                                                           Class="mr-2" Style="max-width: 200px;"/>
+            TomlValueType.DoubleArray => @<MudTooltip Text="@tooltip" Placement="Placement.Top">
                                              <MudTextField @bind-Value="entry.DoubleArrayValue"
-                                                           Label="Values (comma-separated)" Class="flex-grow-1"/>
-                                         </div>,
+                                                           Label="@entry.Key"
+                                                           Placeholder="@helperText"
+                                                           HelperText="@helperText"
+                                                           Variant="Variant.Outlined"
+                                                           ShrinkLabel="true"
+                                                           Class="flex-grow-1"/>
+                                         </MudTooltip>,
 
             _ => @<div></div>
         };
@@ -234,6 +342,10 @@
 
             case TomlValueType.Double:
                 table[entry.Key] = entry.DoubleValue;
+                break;
+
+            case TomlValueType.Boolean:
+                table[entry.Key] = entry.BooleanValue;
                 break;
 
             case TomlValueType.StringArray:
@@ -297,9 +409,17 @@
         public string? StringValue { get; set; }
         public long IntegerValue { get; set; }
         public double DoubleValue { get; set; }
+        public bool BooleanValue { get; set; }
         public string? StringArrayValue { get; set; }
         public string? IntegerArrayValue { get; set; }
         public string? DoubleArrayValue { get; set; }
+        public CommentInfo? Comment { get; set; }
+    }
+
+    private class CommentInfo
+    {
+        public string? HelperText { get; set; }
+        public string? Tooltip { get; set; }
     }
 
     private enum TomlValueType
@@ -307,6 +427,7 @@
         String,
         Integer,
         Double,
+        Boolean,
         StringArray,
         IntegerArray,
         DoubleArray
