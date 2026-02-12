@@ -6,8 +6,6 @@
 
 <MudDialog>
     <DialogContent>
-        <MudText Typo="Typo.h6">Edit TOML Configuration</MudText>
-
         @if (_errorMessage != null)
         {
             <MudAlert Severity="Severity.Error" Class="mb-3">@_errorMessage</MudAlert>
@@ -16,51 +14,25 @@
         <MudPaper Class="pa-4" Elevation="0">
             @foreach (var entry in _entries)
             {
-                <MudPaper Class="pa-3 mb-3" Elevation="1">
-                    @if (entry.IsCategory)
-                    {
+                @if (entry.IsCategory)
+                {
+                    <MudPaper Class="pa-3 mb-3" Elevation="1">
                         <MudText Typo="Typo.h6" Class="mb-2">[@entry.Key]</MudText>
                         @foreach (var subEntry in entry.SubEntries)
                         {
-                            <div class="d-flex align-center mb-2">
+                            <div class="mb-2">
                                 @RenderEntryEditor(subEntry)
-                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                             Size="Size.Small"
-                                             OnClick="@(() => RemoveSubEntry(entry, subEntry))" />
                             </div>
                         }
-                        <MudButton StartIcon="@Icons.Material.Filled.Add"
-                                 Size="Size.Small"
-                                 OnClick="@(() => AddSubEntry(entry))">
-                            Add Entry
-                        </MudButton>
-                    }
-                    else
-                    {
-                        <div class="d-flex align-center">
-                            @RenderEntryEditor(entry)
-                            <MudIconButton Icon="@Icons.Material.Filled.Delete"
-                                         Size="Size.Small"
-                                         OnClick="@(() => RemoveEntry(entry))" />
-                        </div>
-                    }
-                </MudPaper>
+                    </MudPaper>
+                }
+                else
+                {
+                    <div class="mb-2">
+                        @RenderEntryEditor(entry)
+                    </div>
+                }
             }
-
-            <MudButton StartIcon="@Icons.Material.Filled.Add"
-                     Variant="Variant.Filled"
-                     Color="Color.Primary"
-                     OnClick="@AddNewEntry">
-                Add New Entry
-            </MudButton>
-
-            <MudButton StartIcon="@Icons.Material.Filled.Add"
-                     Variant="Variant.Outlined"
-                     Color="Color.Secondary"
-                     Class="ml-2"
-                     OnClick="@AddNewCategory">
-                Add Category
-            </MudButton>
         </MudPaper>
     </DialogContent>
     <DialogActions>
@@ -70,15 +42,12 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter]
-    IMudDialogInstance? MudDialog { get; set; }
+    [CascadingParameter] IMudDialogInstance? MudDialog { get; set; }
 
-    [Parameter]
-    public string? TomlString { get; set; }
+    [Parameter] public string? TomlString { get; set; }
 
     private List<TomlEntry> _entries = new();
     private string? _errorMessage;
-    private int _newEntryCounter = 0;
 
     protected override void OnInitialized()
     {
@@ -168,147 +137,54 @@
         };
     }
 
-    private RenderFragment RenderEntryEditor(TomlEntry entry) => builder =>
+    private RenderFragment RenderEntryEditor(TomlEntry entry)
     {
-        builder.OpenElement(0, "div");
-        builder.AddAttribute(1, "class", "flex-grow-1 d-flex align-center gap-2");
-
-        // Key editor
-        builder.OpenComponent<MudTextField<string>>(2);
-        builder.AddAttribute(3, "Label", "Key");
-        builder.AddAttribute(4, "Value", entry.Key);
-        builder.AddAttribute(5, "ValueChanged", EventCallback.Factory.Create<string>(this, value => entry.Key = value));
-        builder.AddAttribute(6, "Class", "mr-2");
-        builder.AddAttribute(7, "Style", "max-width: 200px;");
-        builder.CloseComponent();
-
-        // Type selector
-        if (!entry.IsCategory)
+        return entry.ValueType switch
         {
-            builder.OpenComponent<MudSelect<TomlValueType>>(8);
-            builder.AddAttribute(9, "Label", "Type");
-            builder.AddAttribute(10, "Value", entry.ValueType);
-            builder.AddAttribute(11, "ValueChanged", EventCallback.Factory.Create<TomlValueType>(this, value => {
-                entry.ValueType = value;
-                StateHasChanged();
-            }));
-            builder.AddAttribute(12, "Class", "mr-2");
-            builder.AddAttribute(13, "Style", "max-width: 150px;");
-            builder.AddAttribute(14, "ChildContent", (RenderFragment)(typeBuilder =>
-            {
-                foreach (var type in Enum.GetValues<TomlValueType>())
-                {
-                    typeBuilder.OpenComponent<MudSelectItem<TomlValueType>>(0);
-                    typeBuilder.AddAttribute(1, "Value", type);
-                    typeBuilder.AddAttribute(2, "ChildContent", (RenderFragment)(textBuilder =>
-                    {
-                        textBuilder.AddContent(0, type.ToString());
-                    }));
-                    typeBuilder.CloseComponent();
-                }
-            }));
-            builder.CloseComponent();
+            TomlValueType.String => @<div class="d-flex align-center gap-2">
+                                        <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true" Class="mr-2"
+                                                      Style="max-width: 200px;"/>
+                                        <MudTextField @bind-Value="entry.StringValue" Label="Value"
+                                                      Class="flex-grow-1"/>
+                                    </div>,
 
-            // Value editor based on type
-            switch (entry.ValueType)
-            {
-                case TomlValueType.String:
-                    builder.OpenComponent<MudTextField<string>>(15);
-                    builder.AddAttribute(16, "Label", "Value");
-                    builder.AddAttribute(17, "Value", entry.StringValue);
-                    builder.AddAttribute(18, "ValueChanged", EventCallback.Factory.Create<string>(this, value => entry.StringValue = value));
-                    builder.AddAttribute(19, "Class", "flex-grow-1");
-                    builder.CloseComponent();
-                    break;
+            TomlValueType.Integer => @<div class="d-flex align-center gap-2">
+                                         <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true" Class="mr-2"
+                                                       Style="max-width: 200px;"/>
+                                         <MudNumericField @bind-Value="entry.IntegerValue" Label="Value"
+                                                          Class="flex-grow-1"/>
+                                     </div>,
 
-                case TomlValueType.Integer:
-                    builder.OpenComponent<MudNumericField<long>>(15);
-                    builder.AddAttribute(16, "Label", "Value");
-                    builder.AddAttribute(17, "Value", entry.IntegerValue);
-                    builder.AddAttribute(18, "ValueChanged", EventCallback.Factory.Create<long>(this, value => entry.IntegerValue = value));
-                    builder.AddAttribute(19, "Class", "flex-grow-1");
-                    builder.CloseComponent();
-                    break;
+            TomlValueType.Double => @<div class="d-flex align-center gap-2">
+                                        <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true" Class="mr-2"
+                                                      Style="max-width: 200px;"/>
+                                        <MudNumericField @bind-Value="entry.DoubleValue" Label="Value"
+                                                         Class="flex-grow-1"/>
+                                    </div>,
 
-                case TomlValueType.Double:
-                    builder.OpenComponent<MudNumericField<double>>(15);
-                    builder.AddAttribute(16, "Label", "Value");
-                    builder.AddAttribute(17, "Value", entry.DoubleValue);
-                    builder.AddAttribute(18, "ValueChanged", EventCallback.Factory.Create<double>(this, value => entry.DoubleValue = value));
-                    builder.AddAttribute(19, "Class", "flex-grow-1");
-                    builder.CloseComponent();
-                    break;
+            TomlValueType.StringArray => @<div class="d-flex align-center gap-2">
+                                             <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true"
+                                                           Class="mr-2" Style="max-width: 200px;"/>
+                                             <MudTextField @bind-Value="entry.StringArrayValue"
+                                                           Label="Values (comma-separated)" Class="flex-grow-1"/>
+                                         </div>,
 
-                case TomlValueType.StringArray:
-                    builder.OpenComponent<MudTextField<string>>(15);
-                    builder.AddAttribute(16, "Label", "Values (comma-separated)");
-                    builder.AddAttribute(17, "Value", entry.StringArrayValue);
-                    builder.AddAttribute(18, "ValueChanged", EventCallback.Factory.Create<string>(this, value => entry.StringArrayValue = value));
-                    builder.AddAttribute(19, "Class", "flex-grow-1");
-                    builder.CloseComponent();
-                    break;
+            TomlValueType.IntegerArray => @<div class="d-flex align-center gap-2">
+                                              <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true"
+                                                            Class="mr-2" Style="max-width: 200px;"/>
+                                              <MudTextField @bind-Value="entry.IntegerArrayValue"
+                                                            Label="Values (comma-separated)" Class="flex-grow-1"/>
+                                          </div>,
 
-                case TomlValueType.IntegerArray:
-                    builder.OpenComponent<MudTextField<string>>(15);
-                    builder.AddAttribute(16, "Label", "Values (comma-separated)");
-                    builder.AddAttribute(17, "Value", entry.IntegerArrayValue);
-                    builder.AddAttribute(18, "ValueChanged", EventCallback.Factory.Create<string>(this, value => entry.IntegerArrayValue = value));
-                    builder.AddAttribute(19, "Class", "flex-grow-1");
-                    builder.CloseComponent();
-                    break;
+            TomlValueType.DoubleArray => @<div class="d-flex align-center gap-2">
+                                             <MudTextField @bind-Value="entry.Key" Label="Key" ReadOnly="true"
+                                                           Class="mr-2" Style="max-width: 200px;"/>
+                                             <MudTextField @bind-Value="entry.DoubleArrayValue"
+                                                           Label="Values (comma-separated)" Class="flex-grow-1"/>
+                                         </div>,
 
-                case TomlValueType.DoubleArray:
-                    builder.OpenComponent<MudTextField<string>>(15);
-                    builder.AddAttribute(16, "Label", "Values (comma-separated)");
-                    builder.AddAttribute(17, "Value", entry.DoubleArrayValue);
-                    builder.AddAttribute(18, "ValueChanged", EventCallback.Factory.Create<string>(this, value => entry.DoubleArrayValue = value));
-                    builder.AddAttribute(19, "Class", "flex-grow-1");
-                    builder.CloseComponent();
-                    break;
-            }
-        }
-
-        builder.CloseElement(); // close flex container
-    };
-
-    private void AddNewEntry()
-    {
-        _entries.Add(new TomlEntry
-        {
-            Key = $"new_key_{++_newEntryCounter}",
-            ValueType = TomlValueType.String,
-            StringValue = ""
-        });
-    }
-
-    private void AddNewCategory()
-    {
-        _entries.Add(new TomlEntry
-        {
-            Key = $"new_category_{++_newEntryCounter}",
-            IsCategory = true,
-            SubEntries = new List<TomlEntry>()
-        });
-    }
-
-    private void AddSubEntry(TomlEntry category)
-    {
-        category.SubEntries.Add(new TomlEntry
-        {
-            Key = $"key_{category.SubEntries.Count + 1}",
-            ValueType = TomlValueType.String,
-            StringValue = ""
-        });
-    }
-
-    private void RemoveEntry(TomlEntry entry)
-    {
-        _entries.Remove(entry);
-    }
-
-    private void RemoveSubEntry(TomlEntry category, TomlEntry subEntry)
-    {
-        category.SubEntries.Remove(subEntry);
+            _ => @<div></div>
+        };
     }
 
     private void Save()
@@ -326,6 +202,7 @@
                     {
                         AddEntryToTable(subTable, subEntry);
                     }
+
                     table[entry.Key] = subTable;
                 }
                 else
@@ -368,6 +245,7 @@
                         stringArray.Add(item);
                     }
                 }
+
                 table[entry.Key] = stringArray;
                 break;
 
@@ -383,6 +261,7 @@
                         }
                     }
                 }
+
                 table[entry.Key] = intArray;
                 break;
 
@@ -398,12 +277,16 @@
                         }
                     }
                 }
+
                 table[entry.Key] = doubleArray;
                 break;
         }
     }
 
-    private void Cancel() => MudDialog?.Cancel();
+    private void Cancel()
+    {
+        MudDialog?.Cancel();
+    }
 
     private class TomlEntry
     {
@@ -428,4 +311,5 @@
         IntegerArray,
         DoubleArray
     }
+
 }
