@@ -29,12 +29,30 @@
     [CascadingParameter] IMudDialogInstance? MudDialog { get; set; }
 
     [Parameter] public string? JsonString { get; set; }
+    [Parameter] public string? DefaultsJsonString { get; set; }
 
     private List<JsonEntry> _entries = new();
+    private Dictionary<string, DefaultMetadata> _defaults = new();
     private string? _errorMessage;
 
     protected override void OnInitialized()
     {
+        // Parse defaults first
+        if (!string.IsNullOrWhiteSpace(DefaultsJsonString))
+        {
+            try
+            {
+                var defaultsObject = JObject.Parse(DefaultsJsonString);
+                ParseDefaults(defaultsObject);
+            }
+            catch (Exception ex)
+            {
+                _errorMessage = $"Failed to parse defaults JSON: {ex.Message}";
+                return;
+            }
+        }
+
+        // Then parse the actual data, or use defaults if no data provided
         if (!string.IsNullOrWhiteSpace(JsonString))
         {
             try
@@ -46,6 +64,52 @@
             {
                 _errorMessage = $"Failed to parse JSON: {ex.Message}";
             }
+        }
+        else if (_defaults.Count > 0)
+        {
+            // No actual data provided, create entries from defaults
+            CreateEntriesFromDefaults();
+        }
+    }
+
+    private void ParseDefaults(JObject defaultsObject)
+    {
+        foreach (var property in defaultsObject.Properties())
+        {
+            if (property.Value is JObject metadataObj)
+            {
+                var metadata = new DefaultMetadata
+                {
+                    ValueToken = metadataObj["value"],
+                    Description = metadataObj["desc"]?.Value<string>()
+                };
+
+                // Type can be either a string or an array
+                var typeToken = metadataObj["type"];
+                if (typeToken?.Type == JTokenType.Array)
+                {
+                    metadata.TypeArray = new List<string>();
+                    foreach (var item in (JArray)typeToken)
+                    {
+                        metadata.TypeArray.Add(item.ToString(Newtonsoft.Json.Formatting.None));
+                    }
+                }
+                else
+                {
+                    metadata.Type = typeToken?.Value<string>() ?? "string";
+                }
+
+                _defaults[property.Name] = metadata;
+            }
+        }
+    }
+
+    private void CreateEntriesFromDefaults()
+    {
+        foreach (var kvp in _defaults)
+        {
+            var entry = CreateEntryFromValue(kvp.Key, kvp.Value.ValueToken);
+            _entries.Add(entry);
         }
     }
 
@@ -62,6 +126,26 @@
         if (value == null || value.Type == JTokenType.Null)
         {
             return new JsonEntry { Key = key, ValueType = JsonValueType.Null };
+        }
+
+        // Check if this key has a default with an array type (for select fields)
+        if (_defaults.TryGetValue(key, out var metadata) && metadata.TypeArray != null && metadata.TypeArray.Count > 0)
+        {
+            // If value is an array, create array entry with select options
+            if (value.Type == JTokenType.Array)
+            {
+                return CreateArrayEntryWithSelect(key, (JArray)value, metadata.TypeArray);
+            }
+
+            // Otherwise, create a select field
+            var currentValue = value.ToString(Newtonsoft.Json.Formatting.None);
+            return new JsonEntry
+            {
+                Key = key,
+                ValueType = JsonValueType.Select,
+                StringValue = currentValue,
+                SelectOptions = metadata.TypeArray
+            };
         }
 
         return value.Type switch
@@ -114,21 +198,77 @@
         return entry;
     }
 
+    private JsonEntry CreateArrayEntryWithSelect(string key, JArray jArray, List<string> selectOptions)
+    {
+        var entry = new JsonEntry
+        {
+            Key = key,
+            ValueType = JsonValueType.ArrayWithSelect,
+            ArrayItems = new List<string>(),
+            SelectOptions = selectOptions
+        };
+
+        foreach (var item in jArray)
+        {
+            entry.ArrayItems.Add(item.ToString(Newtonsoft.Json.Formatting.None));
+        }
+
+        return entry;
+    }
+
+    private string GetHelperText(string key)
+    {
+        if (_defaults.TryGetValue(key, out var metadata))
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrWhiteSpace(metadata.Type))
+            {
+                parts.Add($"Type: {metadata.Type}");
+            }
+            else if (metadata.TypeArray != null && metadata.TypeArray.Count > 0)
+            {
+                parts.Add($"Type: select from options");
+            }
+            if (!string.IsNullOrWhiteSpace(metadata.Description))
+            {
+                parts.Add(metadata.Description);
+            }
+            return string.Join(" - ", parts);
+        }
+        return "";
+    }
+
     private RenderFragment RenderEntryEditor(JsonEntry entry)
     {
+        var helperText = GetHelperText(entry.Key);
+
         return entry.ValueType switch
         {
+            JsonValueType.Select => @<MudSelect T="string"
+                                                @bind-Value="entry.StringValue"
+                                                Label="@entry.Key"
+                                                Variant="Variant.Outlined"
+                                                HelperText="@helperText"
+                                                Class="flex-grow-1">
+                                        @foreach (var option in entry.SelectOptions)
+                                        {
+                                            <MudSelectItem Value="@option">@option</MudSelectItem>
+                                        }
+                                    </MudSelect>,
+
             JsonValueType.String => @<MudTextField @bind-Value="entry.StringValue"
                                                    Label="@entry.Key"
                                                    Variant="Variant.Outlined"
                                                    ShrinkLabel="true"
                                                    Clearable="true"
+                                                   HelperText="@helperText"
                                                    Class="flex-grow-1"/>,
 
             JsonValueType.Number => @<MudNumericField @bind-Value="entry.NumberValue"
                                                       Label="@entry.Key"
                                                       Variant="Variant.Outlined"
                                                       ShrinkLabel="true"
+                                                      HelperText="@helperText"
                                                       Class="flex-grow-1"/>,
 
             JsonValueType.Boolean => @<MudSwitch @bind-Value="entry.BooleanValue"
@@ -199,6 +339,37 @@
                                        </MudButton>
                                    </MudPaper>,
 
+            JsonValueType.ArrayWithSelect => @<MudPaper Class="pa-3" Elevation="1">
+                                       <MudText Typo="Typo.subtitle1" Class="mb-2">@entry.Key (Array)</MudText>
+                                       @for (int i = 0; i < entry.ArrayItems.Count; i++)
+                                       {
+                                           var index = i;
+                                           <div class="d-flex align-center mb-2">
+                                               <MudText Class="mr-2" Style="min-width: 30px;">[@index]</MudText>
+                                               <MudSelect T="string"
+                                                         @bind-Value="entry.ArrayItems[index]"
+                                                         Label="Value"
+                                                         Variant="Variant.Outlined"
+                                                         Margin="Margin.Dense"
+                                                         Class="mr-2 flex-grow-1">
+                                                   @foreach (var option in entry.SelectOptions)
+                                                   {
+                                                       <MudSelectItem Value="@option">@option</MudSelectItem>
+                                                   }
+                                               </MudSelect>
+                                               <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                             Color="Color.Error"
+                                                             Size="Size.Small"
+                                                             OnClick="@(() => entry.ArrayItems.RemoveAt(index))"/>
+                                           </div>
+                                       }
+                                       <MudButton StartIcon="@Icons.Material.Filled.Add"
+                                                 Size="Size.Small"
+                                                 OnClick="@(() => entry.ArrayItems.Add(entry.SelectOptions.FirstOrDefault() ?? ""))">
+                                           Add Item
+                                       </MudButton>
+                                   </MudPaper>,
+
             _ => @<div></div>
         };
     }
@@ -227,6 +398,17 @@
     {
         switch (entry.ValueType)
         {
+            case JsonValueType.Select:
+                // Try to parse the selected value as JSON, otherwise treat as string
+                try
+                {
+                    return JToken.Parse(entry.StringValue);
+                }
+                catch
+                {
+                    return new JValue(entry.StringValue);
+                }
+
             case JsonValueType.String:
                 return new JValue(entry.StringValue);
 
@@ -260,6 +442,7 @@
                 return jObject;
 
             case JsonValueType.Array:
+            case JsonValueType.ArrayWithSelect:
                 var jArray = new JArray();
                 foreach (var item in entry.ArrayItems)
                 {
@@ -295,12 +478,21 @@
         public bool BooleanValue { get; set; }
         public List<ObjectKeyValue> ObjectEntries { get; set; } = new();
         public List<string> ArrayItems { get; set; } = new();
+        public List<string> SelectOptions { get; set; } = new();
     }
 
     private class ObjectKeyValue
     {
         public string Key { get; set; } = "";
         public string Value { get; set; } = "";
+    }
+
+    private class DefaultMetadata
+    {
+        public JToken? ValueToken { get; set; }
+        public string Type { get; set; } = "";
+        public List<string>? TypeArray { get; set; }
+        public string? Description { get; set; }
     }
 
     private enum JsonValueType
@@ -310,6 +502,8 @@
         Boolean,
         Null,
         Object,
-        Array
+        Array,
+        Select,
+        ArrayWithSelect
     }
 }
