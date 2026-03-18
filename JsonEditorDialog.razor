@@ -108,8 +108,17 @@
     {
         foreach (var kvp in _defaults)
         {
-            var entry = CreateEntryFromValue(kvp.Key, kvp.Value.ValueToken);
-            _entries.Add(entry);
+            // If value is an array and type is also an array, create array with select
+            if (kvp.Value.ValueToken?.Type == JTokenType.Array && kvp.Value.TypeArray != null && kvp.Value.TypeArray.Count > 0)
+            {
+                var entry = CreateArrayEntryWithSelect(kvp.Key, (JArray)kvp.Value.ValueToken, kvp.Value.TypeArray);
+                _entries.Add(entry);
+            }
+            else
+            {
+                var entry = CreateEntryFromValue(kvp.Key, kvp.Value.ValueToken);
+                _entries.Add(entry);
+            }
         }
     }
 
@@ -123,36 +132,57 @@
 
     private JsonEntry CreateEntryFromValue(string key, JToken? value)
     {
-        if (value == null || value.Type == JTokenType.Null)
+        var isNull = value == null || value.Type == JTokenType.Null;
+
+        // Check if we have metadata for this key to determine type
+        if (_defaults.TryGetValue(key, out var metadata))
+        {
+            // If type is an array, create select fields
+            if (metadata.TypeArray != null && metadata.TypeArray.Count > 0)
+            {
+                // If value is an array, create array entry with select options
+                if (!isNull && value!.Type == JTokenType.Array)
+                {
+                    return CreateArrayEntryWithSelect(key, (JArray)value, metadata.TypeArray);
+                }
+
+                // Otherwise, create a single select field
+                var currentValue = isNull ? "" : value!.ToString(Newtonsoft.Json.Formatting.None);
+                return new JsonEntry
+                {
+                    Key = key,
+                    ValueType = JsonValueType.Select,
+                    StringValue = currentValue,
+                    SelectOptions = metadata.TypeArray,
+                    IsNullable = true,
+                    IsNull = isNull
+                };
+            }
+
+            // Use type string to determine field type for null values
+            if (isNull && !string.IsNullOrWhiteSpace(metadata.Type))
+            {
+                return metadata.Type.ToLower() switch
+                {
+                    "string" => new JsonEntry { Key = key, ValueType = JsonValueType.String, StringValue = "", IsNullable = true, IsNull = true },
+                    "int" or "integer" or "float" or "double" or "number" => new JsonEntry { Key = key, ValueType = JsonValueType.Number, NumberValue = 0, IsNullable = true, IsNull = true },
+                    "boolean" or "bool" => new JsonEntry { Key = key, ValueType = JsonValueType.Boolean, BooleanValue = false, IsNullable = true, IsNull = true },
+                    _ => new JsonEntry { Key = key, ValueType = JsonValueType.Null }
+                };
+            }
+        }
+
+        // Handle null without metadata
+        if (isNull)
         {
             return new JsonEntry { Key = key, ValueType = JsonValueType.Null };
         }
 
-        // Check if this key has a default with an array type (for select fields)
-        if (_defaults.TryGetValue(key, out var metadata) && metadata.TypeArray != null && metadata.TypeArray.Count > 0)
+        return value!.Type switch
         {
-            // If value is an array, create array entry with select options
-            if (value.Type == JTokenType.Array)
-            {
-                return CreateArrayEntryWithSelect(key, (JArray)value, metadata.TypeArray);
-            }
-
-            // Otherwise, create a select field
-            var currentValue = value.ToString(Newtonsoft.Json.Formatting.None);
-            return new JsonEntry
-            {
-                Key = key,
-                ValueType = JsonValueType.Select,
-                StringValue = currentValue,
-                SelectOptions = metadata.TypeArray
-            };
-        }
-
-        return value.Type switch
-        {
-            JTokenType.String => new JsonEntry { Key = key, ValueType = JsonValueType.String, StringValue = value.Value<string>() ?? "" },
-            JTokenType.Integer => new JsonEntry { Key = key, ValueType = JsonValueType.Number, NumberValue = value.Value<double>() },
-            JTokenType.Float => new JsonEntry { Key = key, ValueType = JsonValueType.Number, NumberValue = value.Value<double>() },
+            JTokenType.String => new JsonEntry { Key = key, ValueType = JsonValueType.String, StringValue = value.Value<string>() ?? "", IsNullable = _defaults.ContainsKey(key) },
+            JTokenType.Integer => new JsonEntry { Key = key, ValueType = JsonValueType.Number, NumberValue = value.Value<double>(), IsNullable = _defaults.ContainsKey(key) },
+            JTokenType.Float => new JsonEntry { Key = key, ValueType = JsonValueType.Number, NumberValue = value.Value<double>(), IsNullable = _defaults.ContainsKey(key) },
             JTokenType.Boolean => new JsonEntry { Key = key, ValueType = JsonValueType.Boolean, BooleanValue = value.Value<bool>() },
             JTokenType.Object => CreateObjectEntry(key, (JObject)value),
             JTokenType.Array => CreateArrayEntry(key, (JArray)value),
@@ -245,31 +275,54 @@
         return entry.ValueType switch
         {
             JsonValueType.Select => @<MudSelect T="string"
-                                                @bind-Value="entry.StringValue"
+                                                Value="@entry.StringValue"
+                                                ValueChanged="@((string val) => { entry.IsNull = string.IsNullOrEmpty(val); entry.StringValue = val; })"
                                                 Label="@entry.Key"
                                                 Variant="Variant.Outlined"
                                                 HelperText="@helperText"
+                                                Clearable="@entry.IsNullable"
                                                 Class="flex-grow-1">
+                                        @if (entry.IsNullable)
+                                        {
+                                            <MudSelectItem Value="@((string)null!)">None</MudSelectItem>
+                                        }
                                         @foreach (var option in entry.SelectOptions)
                                         {
                                             <MudSelectItem Value="@option">@option</MudSelectItem>
                                         }
                                     </MudSelect>,
 
-            JsonValueType.String => @<MudTextField @bind-Value="entry.StringValue"
-                                                   Label="@entry.Key"
-                                                   Variant="Variant.Outlined"
-                                                   ShrinkLabel="true"
-                                                   Clearable="true"
-                                                   HelperText="@helperText"
-                                                   Class="flex-grow-1"/>,
+            JsonValueType.String => @<div class="d-flex align-center">
+                                        <MudTextField @bind-Value="entry.StringValue"
+                                                     Label="@entry.Key"
+                                                     Variant="Variant.Outlined"
+                                                     ShrinkLabel="true"
+                                                     HelperText="@helperText"
+                                                     Class="flex-grow-1"/>
+                                        @if (entry.IsNullable)
+                                        {
+                                            <MudIconButton Icon="@Icons.Material.Filled.Clear"
+                                                          Size="Size.Small"
+                                                          OnClick="@(() => { entry.IsNull = true; entry.StringValue = ""; })"
+                                                          Class="ml-2"/>
+                                        }
+                                    </div>,
 
-            JsonValueType.Number => @<MudNumericField @bind-Value="entry.NumberValue"
-                                                      Label="@entry.Key"
-                                                      Variant="Variant.Outlined"
-                                                      ShrinkLabel="true"
-                                                      HelperText="@helperText"
-                                                      Class="flex-grow-1"/>,
+            JsonValueType.Number => @<div class="d-flex align-center">
+                                        <MudNumericField @bind-Value="entry.NumberValue"
+                                                        Label="@entry.Key"
+                                                        Variant="Variant.Outlined"
+                                                        ShrinkLabel="true"
+                                                        HelperText="@helperText"
+                                                        Class="flex-grow-1"/>
+                                        @if (entry.IsNullable)
+                                        {
+                                            <MudIconButton Icon="@Icons.Material.Filled.Clear"
+                                                          Size="Size.Small"
+                                                          OnClick="@(() => { entry.IsNull = true; entry.NumberValue = 0; })"
+                                                          Class="ml-2"/>
+                                        }
+                                    </div>,
 
             JsonValueType.Boolean => @<MudSwitch @bind-Value="entry.BooleanValue"
                                                  Label="@entry.Key"
@@ -396,10 +449,20 @@
 
     private JToken? ConvertEntryToJToken(JsonEntry entry)
     {
+        // Handle nullable fields that are set to null
+        if (entry.IsNullable && entry.IsNull)
+        {
+            return JValue.CreateNull();
+        }
+
         switch (entry.ValueType)
         {
             case JsonValueType.Select:
                 // Try to parse the selected value as JSON, otherwise treat as string
+                if (string.IsNullOrEmpty(entry.StringValue))
+                {
+                    return JValue.CreateNull();
+                }
                 try
                 {
                     return JToken.Parse(entry.StringValue);
@@ -479,6 +542,8 @@
         public List<ObjectKeyValue> ObjectEntries { get; set; } = new();
         public List<string> ArrayItems { get; set; } = new();
         public List<string> SelectOptions { get; set; } = new();
+        public bool IsNullable { get; set; }
+        public bool IsNull { get; set; }
     }
 
     private class ObjectKeyValue
