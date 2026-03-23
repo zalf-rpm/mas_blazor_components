@@ -324,11 +324,18 @@
                                         }
                                     </div>,
 
-            JsonValueType.Boolean => @<MudSwitch @bind-Value="entry.BooleanValue"
-                                                 Label="@entry.Key"
-                                                 LabelPlacement="Placement.Start"
-                                                 Color="Color.Primary"
-                                                 Class="flex-grow-1"/>,
+            JsonValueType.Boolean => @<div>
+                                        <MudSwitch @bind-Value="entry.BooleanValue"
+                                                   Label="@entry.Key"
+                                                   LabelPlacement="Placement.End"
+                                                   Color="Color.Primary"/>
+                                        @if (!string.IsNullOrEmpty(helperText))
+                                        {
+                                            <div>
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary" Style="margin-left: 0px; margin-top: -8px;">@helperText</MudText>
+                                            </div>
+                                        }
+                                    </div>,
 
             JsonValueType.Null => @<MudTextField Value="@("null")"
                                                  Label="@entry.Key"
@@ -339,7 +346,16 @@
                                                  T="string"/>,
 
             JsonValueType.Object => @<MudPaper Class="pa-3" Elevation="1">
-                                        <MudText Typo="Typo.subtitle1" Class="mb-2">@entry.Key (Object)</MudText>
+                                        <MudText Typo="Typo.subtitle1">@entry.Key (Object)</MudText>
+                                        @if (!string.IsNullOrEmpty(helperText))
+                                        {
+                                            <div class="mb-3">
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@helperText</MudText>
+                                            </div>
+                                        }
+                                        else {
+                                            <div class="mb-2"></div>
+                                        }
                                         @foreach (var objEntry in entry.ObjectEntries)
                                         {
                                             <div class="d-flex align-center mb-2">
@@ -368,7 +384,16 @@
                                     </MudPaper>,
 
             JsonValueType.Array => @<MudPaper Class="pa-3" Elevation="1">
-                                       <MudText Typo="Typo.subtitle1" Class="mb-2">@entry.Key (Array)</MudText>
+                                       <MudText Typo="Typo.subtitle1">@entry.Key (Array)</MudText>
+                                       @if (!string.IsNullOrEmpty(helperText))
+                                       {
+                                           <div class="mb-3">
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@helperText</MudText>
+                                           </div>
+                                       }
+                                       else {
+                                           <div class="mb-2"></div>
+                                       }
                                        @for (int i = 0; i < entry.ArrayItems.Count; i++)
                                        {
                                            var index = i;
@@ -393,7 +418,15 @@
                                    </MudPaper>,
 
             JsonValueType.ArrayWithSelect => @<MudPaper Class="pa-3" Elevation="1">
-                                       <MudText Typo="Typo.subtitle1" Class="mb-2">@entry.Key (Array)</MudText>
+                                       <MudText Typo="Typo.subtitle1">@entry.Key (Array)</MudText>
+                                       @if (!string.IsNullOrEmpty(helperText))
+                                       {
+                                           <div class="mb-3">
+                                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@helperText</MudText>
+                                           </div>
+                                       } else {
+                                           <div class="mb-2"></div>
+                                       }
                                        @for (int i = 0; i < entry.ArrayItems.Count; i++)
                                        {
                                            var index = i;
