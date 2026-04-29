@@ -62,7 +62,7 @@
                 [CascadingParameter(Name = "ChartPanelOpened")]
                 public bool ChartPanelOpened { get; set; } = true;
             }
-            <MudExpansionPanel @bind-IsExpanded="@ChartPanelOpened" Text="Chart">
+            <MudExpansionPanel @bind-Expanded="@ChartPanelOpened" Text="Chart">
                 @code {
                     private List<Highchart.AxisConfig> yAxisConfigs = new()
                 {
@@ -86,7 +86,7 @@
                     CurveName2Config="@curveName2Config" Data="@_name2Data" Dates="@_dates" DataChanged="@_dataChanged"
                     ChartRerendered="@(() => _dataChanged = false)"></Highchart>
             </MudExpansionPanel>
-            <MudExpansionPanel @bind-IsExpanded=@panelOpened["table"] Text="Table">
+            <MudExpansionPanel @bind-Expanded=@panelOpened["table"] Text="Table">
                 <MudTable T="@Element" Items="@data" Hover="@true" Dense="@true" Filter="@(new
                     Func<Element,bool>(DataFilterFunc))">
                     <ToolBarContent>
@@ -126,7 +126,7 @@
                     </PagerContent>
                 </MudTable>
             </MudExpansionPanel>
-            <MudExpansionPanel Text="Text" IsExpanded=@panelOpened["text"] ExpandedChanged=@(b => {
+            <MudExpansionPanel Text="Text" Expanded=@panelOpened["text"] ExpandedChanged=@(b => {
                 panelOpened["text"] = b; CreateCsvString(); })>
                 <MudTextField T="string" ReadOnly="@true" FullWidth="@true" Variant="@Variant.Outlined" Text="@_csvString"
                     Lines="30" />

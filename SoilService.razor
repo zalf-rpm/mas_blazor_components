@@ -490,8 +490,9 @@
     private async Task OpenKA5SoilTypeDialog(Soil.Layer.Property prop)
     {
         var options = new DialogOptions() { CloseButton = true, MaxWidth = MaxWidth.ExtraLarge, FullWidth = true };
-        var res = await DialogService.Show<KA5SoilTypeTriangleDialog>
-            ("Select soil type", options).Result;
+        var dialog = await DialogService.ShowAsync<KA5SoilTypeTriangleDialog>
+            ("Select soil type", options);
+        var res = await dialog.Result;
         if (res?.Data is KA5SoilTypeTriangleDialog.Result r) prop.Type = r.SoilTextureName;
         StateHasChanged();
         if (ProfilesChanged.HasDelegate) _ = ProfilesChanged.InvokeAsync(Profiles);

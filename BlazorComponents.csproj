@@ -13,8 +13,8 @@
     <PackageReference Include="Allegiance.Blazor.Highcharts" Version="7.0.5" />
     <PackageReference Include="Blazored.LocalStorage" Version="4.5.0" />
     <PackageReference Include="BlazorGoogleMaps" Version="4.14.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.0" />
-    <PackageReference Include="MudBlazor" Version="8.15.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.7" />
+    <PackageReference Include="MudBlazor" Version="9.4.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="Tomlyn" Version="0.20.0" />
   </ItemGroup>
