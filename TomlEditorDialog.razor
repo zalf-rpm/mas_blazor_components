@@ -56,7 +56,7 @@
             try
             {
                 var comments = ParseComments(TomlString);
-                var model = Toml.ToModel(TomlString);
+                var model = TomlSerializer.Deserialize<TomlTable>(TomlString) ?? new TomlTable();
                 ParseTomlModel(model, comments);
             }
             catch (Exception ex)
@@ -319,7 +319,7 @@
                 }
             }
 
-            var tomlString = Toml.FromModel(table);
+            var tomlString = TomlSerializer.Serialize(table);
             MudDialog?.Close(DialogResult.Ok(tomlString));
         }
         catch (Exception ex)

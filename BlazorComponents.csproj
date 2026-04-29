@@ -16,7 +16,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.7" />
     <PackageReference Include="MudBlazor" Version="9.4.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-    <PackageReference Include="Tomlyn" Version="0.20.0" />
+    <PackageReference Include="Tomlyn" Version="2.3.2" />
   </ItemGroup>
 
   <ItemGroup>
