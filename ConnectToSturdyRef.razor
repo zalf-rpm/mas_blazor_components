@@ -1,7 +1,6 @@
 ﻿@namespace Mas.Infrastructure.BlazorComponents
 
 @using Capnp.Rpc
-@using System.Threading
 @using System.Reflection
 @using MudBlazor
 
@@ -32,10 +31,10 @@
         }
     </MudSelect>
     <MudFab Class="pa-2 mt-2 ml-2 mr-6"
-            StartIcon="@_connectIcon"
-            Color="@(SturdyRef == null || !SturdyRef.Any() ? Color.Default : _connectColor)"
-            Disabled="@(SturdyRef == null || !SturdyRef.Any())"
-            OnClick="@Connect"/>
+            StartIcon="@ConnectButtonIcon"
+            Color="@ConnectButtonColor"
+            Disabled="@(!CanToggleConnection)"
+            OnClick="@ToggleConnection"/>
     <MudFab Class="pa-2 mt-2 mx-2"
             StartIcon="@Icons.Material.Filled.Edit"
             Color="@Color.Default"
@@ -111,14 +110,13 @@
     private string _connectIcon = Icons.Material.Filled.Cast;
     private Color _connectColor = Color.Default;
     private string _connectLabel = "Connect";
-
-    private bool _showSturdyRefEdit = false;
+    private readonly HashSet<string> _manuallyDisconnectedSturdyRefs = [];
 
     [Parameter]
     public TCapnpInterface? Capability { get; set; }
 
     [Parameter]
-    public EventCallback<TCapnpInterface> CapabilityChanged { get; set; }
+    public EventCallback<TCapnpInterface?> CapabilityChanged { get; set; }
 
     [Parameter]
     public string Label { get; set; } = "Persistent capability";
@@ -129,8 +127,42 @@
     [Parameter]
     public EventCallback<RpcException> RpcExceptionThrown { get; set; }
 
+    private bool IsConnected => Capability != null;
+    private bool CanToggleConnection => IsConnected || !string.IsNullOrWhiteSpace(SturdyRef);
+    private string ConnectButtonIcon => IsConnected ? Icons.Material.Filled.LinkOff : _connectIcon;
+    private Color ConnectButtonColor =>
+        IsConnected
+            ? Color.Success
+            : (string.IsNullOrWhiteSpace(SturdyRef) ? Color.Default : _connectColor);
+
+    protected override void OnParametersSet()
+    {
+        if (Capability == null)
+        {
+            if (_connectColor == Color.Success)
+                ClearButton();
+        }
+        else
+        {
+            _connectIcon = Icons.Material.Filled.CastConnected;
+            _connectColor = Color.Success;
+            _connectLabel = "Connected";
+        }
+    }
+
+    private async Task ToggleConnection()
+    {
+        if (IsConnected)
+            await Disconnect();
+        else
+            await Connect();
+    }
+
     private async Task Connect()
     {
+        if (string.IsNullOrWhiteSpace(SturdyRef))
+            return;
+
         try
         {
             _connectLabel = "Connecting ...";
@@ -155,9 +187,11 @@
                 _connectIcon = Icons.Material.Filled.CastConnected;
                 _connectColor = Color.Success;
                 _connectLabel = "Connected";
+                _manuallyDisconnectedSturdyRefs.Remove(SturdyRef);
                 Console.WriteLine("ConnectToSturdyRef<" + typeof(TCapnpInterface) + ">: succeeded");
 
-                if (CapabilityChanged.HasDelegate) _ = CapabilityChanged.InvokeAsync(Proxy.Share(Capability));
+                if (CapabilityChanged.HasDelegate)
+                    _ = CapabilityChanged.InvokeAsync(Proxy.Share(Capability));
             }
         }
         catch (RpcException e)
@@ -170,6 +204,22 @@
 
             if (RpcExceptionThrown.HasDelegate) _ = RpcExceptionThrown.InvokeAsync(e);
         }
+    }
+
+    private async Task Disconnect()
+    {
+        if (Capability == null)
+            return;
+
+        if (!string.IsNullOrWhiteSpace(SturdyRef))
+            _manuallyDisconnectedSturdyRefs.Add(SturdyRef);
+
+        Capability.Dispose();
+        Capability = default;
+        ClearButton();
+
+        if (CapabilityChanged.HasDelegate)
+            await CapabilityChanged.InvokeAsync(Capability);
     }
 
     public async Task Reconnect()
@@ -221,9 +271,25 @@
 
     private async Task SelectedBookmarkChanged(StoredSrData b, bool allowAutoConnect)
     {
+        if (
+            Capability != null
+            && _selectedBookmark != null
+            && !string.Equals(_selectedBookmark.SturdyRef, b.SturdyRef, StringComparison.Ordinal)
+        )
+        {
+            await Disconnect();
+        }
+
         _selectedBookmark = b;
         SturdyRefValueChanged(b.SturdyRef);
-        if (allowAutoConnect && b.AutoConnect) await Connect();
+        if (
+            allowAutoConnect
+            && b.AutoConnect
+            && !_manuallyDisconnectedSturdyRefs.Contains(b.SturdyRef)
+        )
+        {
+            await Connect();
+        }
         StateHasChanged();
     }
 
@@ -377,31 +443,43 @@
 
     private async Task OpenAddSturdyRefDialog(StoredSrData? editData = null)
     {
-        var parameters = new DialogParameters();
-        parameters.Add("InterfaceId", typeof(TCapnpInterface).GetCustomAttribute<Capnp.TypeIdAttribute>(false)?.Id);
-        parameters.Add("EditData", editData);
+        var interfaceId = typeof(TCapnpInterface).GetCustomAttribute<Capnp.TypeIdAttribute>(false)?.Id ?? 0UL;
+        var parameters = new DialogParameters
+        {
+            { nameof(NewSturdyRefDialog.InterfaceId), interfaceId },
+            { nameof(NewSturdyRefDialog.EditData), editData?.Clone() },
+        };
         var options = new DialogOptions() { CloseButton = true, MaxWidth = MaxWidth.Large, FullWidth = true };
-        var dialog = await DialogService.ShowAsync<NewSturdyRefDialog>("Add sturdy reference", parameters, options);
+        var title = editData == null ? "Add sturdy reference" : "Edit sturdy reference";
+        var dialog = await DialogService.ShowAsync<NewSturdyRefDialog>(title, parameters, options);
         var res = await dialog.Result;
-        if (res is { Data: StoredSrData nb } && editData == null)
+        if (res is null || res.Canceled || res.Data is not StoredSrData bookmark)
+            return;
+
+        if (editData == null)
         {
-            if (nb.SturdyRef.Length == 0) return;
-            _allBookmarks = await StoredSrData.SaveNew(LocalStorage, nb);
+            if (bookmark.SturdyRef.Length == 0) return;
+            _allBookmarks = await StoredSrData.SaveNew(LocalStorage, bookmark);
             _allBookmarks.Sort();
-            await SelectedBookmarkChanged(nb);
+            await SelectedBookmarkChanged(bookmark);
         }
-        else if (editData != null)
+        else
         {
-            //if the user possibly updated the default select field, un-default select all others with same interface
-            if (editData.DefaultSelect)
+            if (bookmark.DefaultSelect)
             {
-                foreach (var b in Bookmarks)
+                foreach (var b in Bookmarks.Where(b => b != editData))
                 {
-                    if (b != editData) b.DefaultSelect = false;
+                    b.DefaultSelect = false;
                 }
             }
+
+            var index = _allBookmarks.IndexOf(editData);
+            if (index >= 0)
+                _allBookmarks[index] = bookmark;
+            _allBookmarks.Sort();
             await StoredSrData.SaveAllData(LocalStorage, _allBookmarks);
-            SturdyRef = editData.SturdyRef;
+            _selectedBookmark = bookmark;
+            SturdyRefValueChanged(bookmark.SturdyRef);
         }
     }
 

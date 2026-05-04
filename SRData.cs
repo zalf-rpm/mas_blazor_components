@@ -11,6 +11,16 @@ namespace Mas.Infrastructure.BlazorComponents
         public bool AutoConnect { get; set; } = false;
         public bool DefaultSelect { get; set; } = false;
 
+        public StoredSrData Clone() =>
+            new()
+            {
+                InterfaceId = InterfaceId,
+                SturdyRef = SturdyRef,
+                PetName = PetName,
+                AutoConnect = AutoConnect,
+                DefaultSelect = DefaultSelect,
+            };
+
         public int CompareTo(StoredSrData? other)
         {
             // A null value means that this object is greater.
